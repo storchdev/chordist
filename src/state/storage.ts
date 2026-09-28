@@ -19,6 +19,8 @@ export interface Settings {
   volume: number
   voiceLeading: boolean
   bass: boolean
+  /** Whether the chromatic bass keys make a sound on their own (otherwise they only set a chord's bass) */
+  bassKeysSound: boolean
   bindings: Binding[]
 }
 
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   volume: -6,
   voiceLeading: true,
   bass: true,
+  bassKeysSound: false,
   bindings: [],
 }
 

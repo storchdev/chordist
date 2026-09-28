@@ -12,6 +12,24 @@ export interface VoicingOptions {
   voiceLeading: boolean
   /** Previous upper voicing, used for voice leading */
   prev: number[] | null
+  /** Previous bass note, used for voice leading the bass line */
+  prevBass: number | null
+}
+
+/**
+ * Place a bass pitch class around octave 2 (at the default octave 4). With voice leading,
+ * pick the octave closest to the previous bass so lines like C → B → A step down instead of jumping.
+ */
+export function placeBass(pc: number, octave: number, voiceLeading: boolean, prevBass: number | null): number {
+  const anchor = 12 * (octave - 1)
+  let n = anchor + pc
+  if (voiceLeading && prevBass !== null) {
+    const lo = anchor - 5
+    const hi = anchor + 14
+    const candidates = [n - 12, n, n + 12].filter((c) => c >= lo && c <= hi)
+    n = candidates.reduce((best, c) => (Math.abs(c - prevBass) < Math.abs(best - prevBass) ? c : best), candidates[0] ?? n)
+  }
+  return n < 24 ? n + 12 : n
 }
 
 const LOW = 48
@@ -72,7 +90,8 @@ export function voiceChord(chord: ResolvedChord, opts: VoicingOptions): Voicing 
   })
 
   return {
-    bass: opts.bass ? base - 24 + (base - 24 < 36 ? 12 : 0) : null,
+    // An explicit slash bass always sounds, even with the bass toggle off
+    bass: opts.bass || chord.bassPc !== null ? placeBass(chord.bassPc ?? chord.rootPc, opts.octave, opts.voiceLeading, opts.prevBass) : null,
     upper: [...core, ...extensions].sort((a, b) => a - b),
   }
 }

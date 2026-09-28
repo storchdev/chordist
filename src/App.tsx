@@ -6,7 +6,7 @@ import { DiatonicStrip } from './components/DiatonicStrip'
 import { KeyMap } from './components/KeyMap'
 import { Piano } from './components/Piano'
 import { useChordKeyboard, type PlayedChord } from './input/useChordKeyboard'
-import { TONICS } from './music/theory'
+import { accidentalText, bassDegreeName, TONICS } from './music/theory'
 import { useSettings } from './state/storage'
 
 function Toggle({ on, label, hint, onClick }: { on: boolean; label: string; hint: string; onClick: () => void }) {
@@ -23,7 +23,7 @@ function Toggle({ on, label, hint, onClick }: { on: boolean; label: string; hint
 export default function App() {
   const [settings, setSettings] = useSettings()
   const [capturing, setCapturing] = useState(false)
-  const { held, last, sustain, shift } = useChordKeyboard({ settings, setSettings, suspended: capturing })
+  const { held, last, sustain, shift, pedal, clearPedal } = useChordKeyboard({ settings, setSettings, suspended: capturing })
   const [history, setHistory] = useState<PlayedChord[]>([])
 
   useEffect(() => engine.setInstrument(settings.instrument), [settings.instrument])
@@ -84,20 +84,50 @@ export default function App() {
         </span>
         <Toggle on={settings.voiceLeading} label="voice leading" hint="Tab" onClick={() => setSettings((p) => ({ ...p, voiceLeading: !p.voiceLeading }))} />
         <Toggle on={settings.bass} label="bass note" hint="Enter" onClick={() => setSettings((p) => ({ ...p, bass: !p.bass }))} />
+        <Toggle
+          on={settings.bassKeysSound}
+          label="bass keys sound"
+          hint="Q"
+          onClick={() => setSettings((p) => ({ ...p, bassKeysSound: !p.bassKeysSound }))}
+        />
         <span
           className={`rounded-lg px-3 py-1.5 font-display text-sm transition ${sustain ? 'bg-violet-500 text-white shadow-[0_0_20px_#b14bff]' : 'glass text-white/40'}`}
         >
           SUSTAIN
         </span>
+        {pedal?.kind === 'degree' ? (
+          <button
+            onClick={clearPedal}
+            title="click (or tap /) to clear"
+            className="rounded-lg bg-orange-500/80 px-3 py-1.5 font-display text-sm text-white shadow-[0_0_20px_#ff7a00]"
+          >
+            PEDAL /{bassDegreeName(settings.tonic, pedal.degree, pedal.accidental)}{' '}
+            <span className="text-[10px] opacity-80">
+              ({accidentalText(pedal.accidental)}
+              {pedal.degree}) ✕
+            </span>
+          </button>
+        ) : (
+          <span className="glass rounded-lg px-3 py-1.5 font-display text-sm text-white/40">
+            PEDAL <span className="text-[10px]">[/ + 1–7]</span>
+          </span>
+        )}
       </div>
 
       <ChordDisplay last={last} tonic={settings.tonic} />
-      <DiatonicStrip tonic={settings.tonic} held={held} shift={shift} last={last} />
+      <DiatonicStrip tonic={settings.tonic} held={held} shift={shift} pedal={pedal} last={last} />
       <Piano />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <div className="flex flex-col gap-6">
-          <KeyMap held={held} shift={shift} sustain={sustain} bindings={settings.bindings} />
+          <KeyMap
+            tonic={settings.tonic}
+            toggles={{ KeyQ: settings.bassKeysSound, Tab: settings.voiceLeading, Enter: settings.bass }}
+            held={held}
+            shift={shift}
+            sustain={sustain}
+            bindings={settings.bindings}
+          />
           <div className="glass rounded-2xl p-4">
             <h2 className="mb-2 font-display text-sm tracking-widest text-white/50">HISTORY</h2>
             <div className="flex flex-wrap gap-2">

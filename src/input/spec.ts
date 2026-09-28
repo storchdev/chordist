@@ -1,5 +1,5 @@
-import { DIATONIC_QUALITY, type ChordSpec, type Degree, type Extension, type Quality, type Seventh } from '../music/theory'
-import { EXTENSION_KEYS, QUALITY_KEYS, SEVENTH_KEYS } from './keymap'
+import { DIATONIC_QUALITY, type BassSpec, type ChordSpec, type Degree, type Extension, type Quality, type Seventh } from '../music/theory'
+import { BASS_KEYS, EXTENSION_KEYS, INVERSION_KEYS, QUALITY_KEYS, SEVENTH_KEYS } from './keymap'
 
 /**
  * Turn a degree key + currently held modifier keys into a chord spec.
@@ -7,8 +7,10 @@ import { EXTENSION_KEYS, QUALITY_KEYS, SEVENTH_KEYS } from './keymap'
  * Precedence, lowest to highest:
  *   diatonic quality (♭root → major) → Shift flip → `]` forces major →
  *   sus (`;` `'`) → dim/aug (`-` `=`) → `\` forces dim
+ *
+ * Bass (low → high): latched `/` pedal → inversion key (8/9/0) → held one-off bass key (Q…U).
  */
-export function buildSpec(degree: Degree, held: ReadonlySet<string>, shift: boolean): ChordSpec {
+export function buildSpec(degree: Degree, held: ReadonlySet<string>, shift: boolean, pedal: BassSpec | null): ChordSpec {
   const flatRoot = held.has(QUALITY_KEYS.flatRoot)
   let quality: Quality = flatRoot ? 'maj' : DIATONIC_QUALITY[degree]
 
@@ -36,5 +38,14 @@ export function buildSpec(degree: Degree, held: ReadonlySet<string>, shift: bool
   const extensions: Extension[] = []
   for (const [code, ext] of Object.entries(EXTENSION_KEYS)) if (held.has(code)) extensions.push(ext)
 
-  return { degree, flatRoot, quality, seventh, extensions }
+  let bass: BassSpec | null = pedal
+  for (const [code, index] of Object.entries(INVERSION_KEYS)) {
+    if (held.has(code) && (bass?.kind !== 'chordTone' || index > bass.index)) bass = { kind: 'chordTone', index }
+  }
+  // No 7th to put in the bass → leave it in root position
+  if (bass?.kind === 'chordTone' && bass.index === 3 && !seventh) bass = pedal
+  // Held set iterates in press order, so the most recently pressed bass key wins
+  for (const code of held) if (BASS_KEYS[code]) bass = BASS_KEYS[code]
+
+  return { degree, flatRoot, quality, seventh, extensions, bass }
 }

@@ -13,6 +13,12 @@ export type Extension = 'b9' | '9' | '#9' | '11' | '#11' | 'b13' | '13'
 export const EXTENSIONS: Extension[] = ['b9', '9', '#9', '11', '#11', 'b13', '13']
 
 /**
+ * Custom bass note. `chordTone` = inversion (index into the core chord tones: 1 = 3rd/sus, 2 = 5th, 3 = 7th).
+ * `degree` = any scale degree of the key, optionally flattened/sharpened (pedal points, passing basses).
+ */
+export type BassSpec = { kind: 'chordTone'; index: 1 | 2 | 3 } | { kind: 'degree'; degree: Degree; accidental: -1 | 0 | 1 }
+
+/**
  * A chord described relative to the current key. This is what the keyboard
  * produces and what relative custom bindings store, so they transpose with the tonic.
  */
@@ -22,6 +28,8 @@ export interface ChordSpec {
   quality: Quality
   seventh: Seventh | null
   extensions: Extension[]
+  /** Optional since relative bindings saved before bass support don't have it */
+  bass?: BassSpec | null
 }
 
 export interface ResolvedChord {
@@ -35,6 +43,9 @@ export interface ResolvedChord {
   /** Extensions in semitones above the root (13+) */
   extensions: number[]
   noteNames: string[]
+  /** Slash bass, null when the bass is just the root */
+  bassName: string | null
+  bassPc: number | null
 }
 
 export const DIATONIC_QUALITY: Record<Degree, Quality> = {
@@ -64,6 +75,38 @@ function flatten(note: string): string {
   return note.endsWith('#') ? note.slice(0, -1) : note + 'b'
 }
 
+function sharpen(note: string): string {
+  return note.endsWith('b') && note.length > 1 ? note.slice(0, -1) : note + '#'
+}
+
+/** Apply an accidental, respelling enharmonically to avoid double flats/sharps */
+function alter(note: string, accidental: -1 | 0 | 1): string {
+  if (accidental === 0) return note
+  const out = accidental < 0 ? flatten(note) : sharpen(note)
+  return /(bb|##)$/.test(out) ? Note.simplify(out) : out
+}
+
+export function accidentalText(accidental: -1 | 0 | 1): string {
+  return accidental < 0 ? '♭' : accidental > 0 ? '♯' : ''
+}
+
+/** Name of a bass degree in a key, e.g. degree 4 sharp in C → F# */
+export function bassDegreeName(tonic: Tonic, degree: Degree, accidental: -1 | 0 | 1): string {
+  return alter(scaleOf(tonic)[degree - 1], accidental)
+}
+
+/** Scale-degree label for a pitch class in a major key, e.g. Bb in C → "♭7" */
+function degreeLabel(tonic: Tonic, pc: number): string {
+  const scalePcs = scaleOf(tonic).map((n) => Note.chroma(n) ?? 0)
+  const exact = scalePcs.indexOf(pc)
+  if (exact >= 0) return String(exact + 1)
+  const flatOf = scalePcs.indexOf((pc + 1) % 12)
+  return flatOf >= 0 ? `♭${flatOf + 1}` : `♯${scalePcs.indexOf((pc + 11) % 12) + 1}`
+}
+
+const TRIAD_FIGURES: Record<number, string> = { 1: '⁶', 2: '⁶₄' }
+const SEVENTH_FIGURES: Record<number, string> = { 1: '⁶₅', 2: '⁴₃', 3: '⁴₂' }
+
 function chordSuffix(q: Quality, s: Seventh | null): string {
   switch (q) {
     case 'maj': return s === 'maj7' ? 'maj7' : s === 'b7' ? '7' : ''
@@ -92,9 +135,7 @@ function sortExtensions(exts: Extension[]): Extension[] {
 
 export function resolveSpec(spec: ChordSpec, tonic: Tonic): ResolvedChord {
   const degreeNote = scaleOf(tonic)[spec.degree - 1]
-  const flat = flatten(degreeNote)
-  // Avoid double flats (bIV in Db would be Gbb) by respelling enharmonically
-  const rootName = !spec.flatRoot ? degreeNote : flat.endsWith('bb') ? Note.simplify(flat) : flat
+  const rootName = alter(degreeNote, spec.flatRoot ? -1 : 0)
   const exts = sortExtensions(spec.extensions)
 
   const coreIvls = [...QUALITY_INTERVALS[spec.quality]]
@@ -105,30 +146,64 @@ export function resolveSpec(spec: ChordSpec, tonic: Tonic): ResolvedChord {
   const upper = spec.quality === 'maj' || spec.quality === 'aug' || spec.quality.startsWith('sus')
   const numeral = ROMAN[spec.degree - 1]
 
+  const noteNames = [...coreIvls, ...extIvls].map((i) => Note.transpose(rootName, i))
+  const rootPc = Note.chroma(rootName) ?? 0
+
+  let bassName: string | null = null
+  if (spec.bass?.kind === 'chordTone') bassName = spec.bass.index < coreIvls.length ? noteNames[spec.bass.index] : null
+  else if (spec.bass?.kind === 'degree') bassName = bassDegreeName(tonic, spec.bass.degree, spec.bass.accidental)
+  const bassPc = bassName === null ? null : (Note.chroma(bassName) ?? 0)
+  const slash = bassPc !== null && bassPc !== rootPc
+
+  let romanText = (spec.flatRoot ? '♭' : '') + (upper ? numeral : numeral.toLowerCase()) + romanSuffix(spec.quality, spec.seventh)
+  if (slash) {
+    // Figured bass when the bass is a chord tone of a triad/7th chord, otherwise the bass scale degree: IV/(♭7)
+    const toneIndex = coreIvls.findIndex((_, i) => (Note.chroma(noteNames[i]) ?? -1) === bassPc)
+    const figure = spec.quality.startsWith('sus') ? undefined : (spec.seventh ? SEVENTH_FIGURES : TRIAD_FIGURES)[toneIndex]
+    if (figure) romanText = spec.seventh ? romanText.replace(/7(?!.*7)/, figure) : romanText + figure
+    else
+      romanText +=
+        spec.bass?.kind === 'degree'
+          ? `/(${accidentalText(spec.bass.accidental)}${spec.bass.degree})`
+          : `/(${degreeLabel(tonic, bassPc)})`
+  }
+
   return {
-    symbol: rootName + chordSuffix(spec.quality, spec.seventh) + addText,
-    roman: (spec.flatRoot ? '♭' : '') + (upper ? numeral : numeral.toLowerCase()) + romanSuffix(spec.quality, spec.seventh) + addText,
+    symbol: rootName + chordSuffix(spec.quality, spec.seventh) + addText + (slash ? '/' + bassName : ''),
+    roman: romanText + addText,
     rootName,
-    rootPc: Note.chroma(rootName) ?? 0,
+    rootPc,
     core: coreIvls.map((i) => Interval.semitones(i) ?? 0),
     extensions: extIvls.map((i) => Interval.semitones(i) ?? 0),
-    noteNames: [...coreIvls, ...extIvls].map((i) => Note.transpose(rootName, i)),
+    noteNames,
+    bassName: slash ? bassName : null,
+    bassPc: slash ? bassPc : null,
   }
 }
 
 /** Parse an absolute chord symbol like "G7b9" or "F#m7b5". Returns null if tonal can't read it. */
 export function resolveSymbol(symbol: string): ResolvedChord | null {
-  const c = Chord.get(symbol.trim())
+  // Parse the slash bass ourselves: tonal rotates slash chords, which would put the root up an octave
+  const [head, bassPart, ...rest] = symbol.trim().split('/')
+  if (rest.length) return null
+  const c = Chord.get(head)
   if (c.empty || !c.tonic) return null
+  const bass = bassPart === undefined ? null : Note.pitchClass(bassPart)
+  if (bass === '') return null
+  const rootPc = Note.chroma(c.tonic) ?? 0
+  const bassPc = bass === null ? null : (Note.chroma(bass) ?? null)
+  const slash = bassPc !== null && bassPc !== rootPc
   const semis = c.intervals.map((i) => Interval.semitones(i) ?? 0)
   return {
-    symbol: c.symbol,
+    symbol: c.symbol + (slash ? '/' + bass : ''),
     roman: null,
     rootName: c.tonic,
-    rootPc: Note.chroma(c.tonic) ?? 0,
+    rootPc,
     core: semis.filter((s) => s < 12),
     extensions: semis.filter((s) => s >= 12),
     noteNames: c.notes,
+    bassName: slash ? bass : null,
+    bassPc: slash ? bassPc : null,
   }
 }
 
