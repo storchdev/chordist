@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import * as Tone from 'tone'
 import { engine } from '../audio/engine'
+import { probeLatency, type LatencyProbe } from '../audio/latency'
 import { patternById, PATTERNS } from '../audio/patterns'
 import { Sequencer } from '../audio/sequencer'
 import { Note } from 'tonal'
@@ -91,7 +93,7 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
       loopOwner.current = null
     }
 
-    const play = (code: string, chord: ResolvedChord, spec: ChordSpec | null) => {
+    const play = (code: string, chord: ResolvedChord, spec: ChordSpec | null, probe: LatencyProbe) => {
       const s = settingsRef.current
       let voicing = voiceChord(chord, {
         octave: s.octave,
@@ -117,12 +119,14 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
       // A new chord always takes over the loop, even if the previous chord's key is still down
       const pattern = patternById(s.pattern)
       if (pattern.kind === 'loop') {
-        sequencer.play(pattern, voicing, syncQuantum(s.sync, pattern.steps))
+        const quantum = syncQuantum(s.sync, pattern.steps)
+        sequencer.play(pattern, voicing, quantum, (t) => probe.sounded(t, quantum === null ? 'loop' : `loop, includes sync ${s.sync} wait`))
         loopOwner.current = code
       } else {
         stopSeq()
         playing.current.set(code, notes)
         engine.noteOn(notes, 0.8, pattern.strum)
+        probe.sounded(Tone.now(), 'held chord')
       }
       setLast({ chord, spec, voicing, hit: ++hitCount.current })
     }
@@ -135,13 +139,14 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
     }
 
     /** Sound a bass note on its own (bass keys with the solo toggle on) */
-    const playBassNote = (code: string, bass: Extract<BassSpec, { kind: 'degree' }>) => {
+    const playBassNote = (code: string, bass: Extract<BassSpec, { kind: 'degree' }>, probe: LatencyProbe) => {
       let midi = rowBassMidi(bass)
       const shift = octaveShift() * 12
       if (shift) midi += shift
       else prevBass.current = midi
       playing.current.set(code, [midi])
       engine.noteOn([midi])
+      probe.sounded(Tone.now(), 'bass note')
     }
 
     const stop = (code: string) => {
@@ -185,8 +190,10 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
         // Setting a pedal is silent; plain bass keys only sound with the toggle on
         if (latch || !s.bassKeysSound) return
         down.add(e.code)
+        const probe = probeLatency(e)
         await engine.start()
-        playBassNote(e.code, bassKey)
+        probe.audioStarted()
+        playBassNote(e.code, bassKey, probe)
         if (!down.has(e.code)) stop(e.code)
         return
       }
@@ -212,9 +219,11 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
           : buildSpec(degree!, heldRef.current, e.shiftKey, pedalRef.current)
         const chord = spec ? resolveSpec(spec, s.tonic) : resolveSymbol((binding!.target as { symbol: string }).symbol)
         down.add(e.code)
+        const probe = probeLatency(e)
         await engine.start() // only actually waits on the very first key press
+        probe.audioStarted()
         if (!chord) return
-        play(e.code, chord, spec)
+        play(e.code, chord, spec, probe)
         if (!down.has(e.code)) stop(e.code) // released while audio was starting up
         return
       }

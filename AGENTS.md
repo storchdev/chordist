@@ -96,6 +96,8 @@ Every chord (including custom binds) plays through the current pattern (`setting
   Sync off (or clock idle) → restart the pattern at step 0 right away.
 - Chord swaps happen inside the clock's tick: release old notes, then attack new ones, same tick. Never run
   two sequencers at once; they'd fight over shared notes. Releasing the key that owns the loop stops it.
+- Tone's global `lookAhead` is 0 (set in `engine.init`); its 0.1s default added audible key latency.
+  `Tone.now()` is therefore the real audio time, and the sequencer's own lookahead is the only scheduling buffer.
 - 30 ms lookahead so a chord change can't be followed by already-queued hits of the old chord.
 - Pattern hits release via a guarded timer (`engine.releaseLater`), not a scheduled release, because
   PolySynth resolves releases late and would cut off a newer attack of the same note.
@@ -113,6 +115,8 @@ Ctrl/Meta combos are never captured so browser shortcuts keep working.
 
 ## Conventions
 
+- Latency debug logging (`audio/latency.ts`): each sounding key press logs press → speaker time with a breakdown.
+  On in dev; in a build set `localStorage['chordist:debug-latency'] = '1'`. Pass the probe along any new play path.
 - `<select>`s are blurred after change (App `onChangeCapture`); focused form fields swallow the chord keys.
 
 - Add new keys in `input/keymap.ts` first, then `spec.ts`/hook, then the `KeyMap.tsx` legend. Keep the AGENTS table in sync.

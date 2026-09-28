@@ -53,6 +53,9 @@ class Engine {
   }
 
   private async init() {
+    // Tone schedules everything this far ahead by default (0.1s) for steady timelines. A live
+    // instrument wants "now"; the sequencer keeps its own short lookahead for pattern timing.
+    Tone.getContext().lookAhead = 0
     await Tone.start()
     const reverb = new Tone.Reverb({ decay: 3.5, wet: 0.25 })
     const limiter = new Tone.Limiter(-1).toDestination()

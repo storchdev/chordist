@@ -20,12 +20,14 @@ const GATE = 0.92
 interface Loaded {
   pattern: LoopPattern
   byStep: Map<number, PatternEvent[]>
+  /** Called once with the audio time of this chord's first step (latency debugging) */
+  onStart?: (time: number) => void
 }
 
-function load(pattern: LoopPattern, voicing: Voicing): Loaded {
+function load(pattern: LoopPattern, voicing: Voicing, onStart?: (time: number) => void): Loaded {
   const byStep = new Map<number, PatternEvent[]>()
   for (const ev of pattern.build(voicing)) byStep.set(ev.step, [...(byStep.get(ev.step) ?? []), ev])
-  return { pattern, byStep }
+  return { pattern, byStep, onStart }
 }
 
 /**
@@ -69,8 +71,8 @@ export class Sequencer {
    * Play a chord's loop. `quantum` (in steps) snaps it to the next grid point of the clock that's
    * running, or that stopped less than a bar ago; null restarts the pattern right away.
    */
-  play(pattern: LoopPattern, voicing: Voicing, quantum: number | null) {
-    const loaded = load(pattern, voicing)
+  play(pattern: LoopPattern, voicing: Voicing, quantum: number | null, onStart?: (time: number) => void) {
+    const loaded = load(pattern, voicing, onStart)
     const now = Tone.now()
     const stepDur = this.stepDur()
     const clockAlive = this.running || (this.current !== null && now - this.next < 16 * stepDur)
@@ -123,6 +125,8 @@ export class Sequencer {
     if (!this.current) return
     const steps = this.current.pattern.steps
     const stepDur = this.stepDur()
+    this.current.onStart?.(time)
+    this.current.onStart = undefined
     for (const ev of this.current.byStep.get(index % steps) ?? []) {
       ev.notes.forEach((n) => this.used.add(n))
       this.lastAttack = Math.max(this.lastAttack, engine.hit(ev.notes, time, ev.dur * stepDur * GATE, ev.vel, ev.strum))
