@@ -8,8 +8,9 @@ flashy/vibe-coded; that's intended.
 
 - Vite + React 19 + TypeScript (strict) + Tailwind v4 (`@tailwindcss/vite`, config lives in `src/index.css` `@theme`)
 - `tone` for audio (Salamander piano samples streamed from `tonejs.github.io`; acoustic/nylon/electric guitar samples from
-  `nbrosowsky.github.io/tonejs-instruments`, downloaded only when first picked; plus two synths). While an
-  instrument's samples load, the neon synth plays instead. Sample file lists in `engine.ts` must match the repo exactly
+  `nbrosowsky.github.io/tonejs-instruments`, downloaded only when first picked; plus two synths). The audio graph is
+  built and the current instrument's samples start downloading on page load (`engine.build`, no gesture needed);
+  the first key press only resumes the context. While an instrument's samples load, the neon synth plays instead. Sample file lists in `engine.ts` must match the repo exactly
   or the Sampler never finishes loading.
 - `tonal` for note spelling, intervals, key scales, and parsing chord symbols
 - Persistence: `localStorage` only (`chordist:settings:v1`). No backend.
@@ -82,7 +83,8 @@ Upper voice leading is confined to a window around the octave setting with a pul
 center (`voicing.ts` constants), so long progressions don't drift up or down. Keep that invariant.
 Notes-per-chord (`settings.voices`, top-bar "notes" select): `auto` (every chord tone once) or 1–5 upper notes,
 bass not counted. Fewer drops the 5th first, then the root if the bass already plays it, then extensions from the
-top, then the 7th; with no bass the root is kept first. More adds octave doublings above the top (root, 5th, 3rd, 7th).
+top, then the 7th; with no bass the root is kept first. More continues the close-position stack above the top (each extra note = nearest
+core chord tone above), so gaps never exceed the chord's own spacing. Don't double at fixed octaves: that left 12+ semitone holes.
 Lives in `chooseTones` in `voicing.ts`; no key assigned yet.
 Bass gap (`settings.bassGap`, top-bar select): 1–3 octaves between the bass and the chord's octave (default 2 = C2
 under C4). Applies to chord basses (`placeBass`) and the piano-row bass keys (`pianoRowBass`), floored at C1.

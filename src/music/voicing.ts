@@ -40,19 +40,12 @@ function role(s: number): Role {
 /**
  * Pick which chord tones to play for a voice count. Fewer notes drops the least defining
  * tones first: the 5th, then the root when the bass already plays it, then extensions from
- * the top. More notes adds octave doublings, root first, then 5th, 3rd, 7th.
+ * the top. More notes returns how many doublings to stack on top (see `voiceChord`).
  */
 function chooseTones(chord: ResolvedChord, voices: VoiceCount, bassIsRoot: boolean) {
   const total = chord.core.length + chord.extensions.length
-  if (voices === 'auto' || voices === total) return { core: chord.core, extensions: chord.extensions, doublings: [] }
-  if (voices > total) {
-    const order = (['root', 'fifth', 'third', 'seventh'] as Role[]).flatMap((r) => chord.core.filter((s) => role(s) === r))
-    return {
-      core: chord.core,
-      extensions: chord.extensions,
-      doublings: Array.from({ length: voices - total }, (_, i) => order[i % order.length]),
-    }
-  }
+  if (voices === 'auto' || voices === total) return { core: chord.core, extensions: chord.extensions, doublings: 0 }
+  if (voices > total) return { core: chord.core, extensions: chord.extensions, doublings: voices - total }
   const of = (r: Role) => chord.core.filter((s) => role(s) === r)
   const priority = [
     ...(bassIsRoot ? [] : of('root')),
@@ -63,7 +56,7 @@ function chooseTones(chord: ResolvedChord, voices: VoiceCount, bassIsRoot: boole
     ...of('fifth'),
   ]
   const keep = new Set(priority.slice(0, voices))
-  return { core: chord.core.filter((s) => keep.has(s)), extensions: chord.extensions.filter((s) => keep.has(s)), doublings: [] }
+  return { core: chord.core.filter((s) => keep.has(s)), extensions: chord.extensions.filter((s) => keep.has(s)), doublings: 0 }
 }
 
 /**
@@ -161,12 +154,12 @@ export function voiceChord(chord: ResolvedChord, opts: VoicingOptions): Voicing 
     return n
   })
 
-  // Doublings stack above everything, each at the next free octave of its pitch class
+  // Doublings continue the close-position stack: each is the nearest core chord tone above the
+  // current top, so extra notes never leave a gap wider than the chord's own spacing
   const upper = [...core, ...extensions]
-  for (const s of tones.doublings) {
-    const pc = (chord.rootPc + s) % 12
+  for (let i = 0; i < tones.doublings; i++) {
     const high = Math.max(...upper)
-    upper.push(high + 1 + ((((pc - (high + 1)) % 12) + 12) % 12))
+    upper.push(Math.min(...corePcs.map((pc) => high + 1 + ((((pc - (high + 1)) % 12) + 12) % 12))))
   }
 
   return {

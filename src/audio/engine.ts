@@ -77,17 +77,23 @@ class Engine {
   private listeners = new Set<() => void>()
   private volumeDb = -6
 
-  /** Must first be called from a user gesture (key press) */
+  /** Resumes the audio context; must first be called from a user gesture (key press) */
   start(): Promise<void> {
-    this.starting ??= this.init()
+    this.build()
+    this.starting ??= Tone.start()
     return this.starting
   }
 
-  private async init() {
+  /**
+   * Build the audio graph and start downloading samples. Safe before any user gesture (the
+   * context just stays suspended until `start`), so it runs on page load via `setInstrument`
+   * and the samples are usually ready by the first key press.
+   */
+  private build() {
+    if (this.output) return
     // Tone schedules everything this far ahead by default (0.1s) for steady timelines. A live
     // instrument wants "now"; the sequencer keeps its own short lookahead for pattern timing.
     Tone.getContext().lookAhead = 0
-    await Tone.start()
     const reverb = new Tone.Reverb({ decay: 3.5, wet: 0.25 })
     const limiter = new Tone.Limiter(-1).toDestination()
     this.output = new Tone.Volume(this.volumeDb)
@@ -152,6 +158,7 @@ class Engine {
   setInstrument(name: InstrumentName) {
     this.panic()
     this.current = name
+    this.build()
     this.loadGuitar(name)
   }
 
