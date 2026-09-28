@@ -7,7 +7,10 @@ flashy/vibe-coded; that's intended.
 ## Stack
 
 - Vite + React 19 + TypeScript (strict) + Tailwind v4 (`@tailwindcss/vite`, config lives in `src/index.css` `@theme`)
-- `tone` for audio (Salamander piano samples streamed from `tonejs.github.io`, plus two synths)
+- `tone` for audio (Salamander piano samples streamed from `tonejs.github.io`; acoustic/nylon/electric guitar samples from
+  `nbrosowsky.github.io/tonejs-instruments`, downloaded only when first picked; plus two synths). While an
+  instrument's samples load, the neon synth plays instead. Sample file lists in `engine.ts` must match the repo exactly
+  or the Sampler never finishes loading.
 - `tonal` for note spelling, intervals, key scales, and parsing chord symbols
 - Persistence: `localStorage` only (`chordist:settings:v1`). No backend.
 

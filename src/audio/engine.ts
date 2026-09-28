@@ -1,10 +1,13 @@
 import * as Tone from 'tone'
 
-export type InstrumentName = 'piano' | 'neon' | 'pad'
+export type InstrumentName = 'piano' | 'guitarAcoustic' | 'guitarNylon' | 'guitarElectric' | 'neon' | 'pad'
 export const INSTRUMENTS: { id: InstrumentName; label: string }[] = [
-  { id: 'piano', label: '🎹 Grand' },
-  { id: 'neon', label: '⚡ Neon Saw' },
-  { id: 'pad', label: '🌌 Space Pad' },
+  { id: 'piano', label: 'Grand' },
+  { id: 'guitarAcoustic', label: 'Acoustic Guitar' },
+  { id: 'guitarNylon', label: 'Nylon Guitar' },
+  { id: 'guitarElectric', label: 'Electric Guitar' },
+  { id: 'neon', label: 'Neon Saw' },
+  { id: 'pad', label: 'Space Pad' },
 ]
 
 type Voice = Tone.Sampler | Tone.PolySynth
@@ -22,6 +25,33 @@ function salamanderUrls(): Record<string, string> {
   return urls
 }
 
+/** Guitar samples from nbrosowsky/tonejs-instruments; file names use `s` for sharps (As2 = A#2) */
+const GUITAR_BASE = 'https://nbrosowsky.github.io/tonejs-instruments/samples/'
+const GUITARS: Partial<Record<InstrumentName, { dir: string; files: string; release: number; volume: number }>> = {
+  guitarAcoustic: {
+    dir: 'guitar-acoustic',
+    files: 'A2 A3 A4 As2 As3 As4 B2 B3 B4 C3 C4 C5 Cs3 Cs4 Cs5 D2 D3 D4 D5 Ds2 Ds3 Ds4 E2 E3 E4 F2 F3 F4 Fs2 Fs3 Fs4 G2 G3 G4 Gs2 Gs3 Gs4',
+    release: 1,
+    volume: 0,
+  },
+  guitarNylon: {
+    dir: 'guitar-nylon',
+    files: 'A2 A3 A4 A5 As5 B1 B2 B3 B4 Cs3 Cs4 Cs5 D2 D3 D5 Ds4 E2 E3 E4 E5 Fs2 Fs3 Fs4 Fs5 G3 G5 Gs2 Gs4 Gs5',
+    release: 1,
+    volume: 0,
+  },
+  guitarElectric: {
+    dir: 'guitar-electric',
+    files: 'A2 A3 A4 A5 C3 C4 C5 C6 Cs2 Ds3 Ds4 Ds5 E2 Fs2 Fs3 Fs4 Fs5',
+    release: 0.6,
+    volume: -4,
+  },
+}
+
+function guitarUrls(files: string): Record<string, string> {
+  return Object.fromEntries(files.split(' ').map((f) => [f.replace('s', '#'), `${f}.mp3`]))
+}
+
 /**
  * Owns all Tone.js objects. Notes are reference counted so overlapping chords
  * that share a note don't cut each other off, and the sustain pedal defers releases.
@@ -30,7 +60,8 @@ class Engine {
   private starting: Promise<void> | null = null
   private output: Tone.Volume | null = null
   private voices = new Map<InstrumentName, Voice>()
-  private pianoLoaded = false
+  /** Sampled instruments whose samples have finished downloading */
+  private loaded = new Set<InstrumentName>(['neon', 'pad'])
   private current: InstrumentName = 'piano'
   private counts = new Map<number, number>()
   private sustained = new Set<number>()
@@ -67,7 +98,7 @@ class Engine {
       baseUrl: 'https://tonejs.github.io/audio/salamander/',
       release: 1.2,
       onload: () => {
-        this.pianoLoaded = true
+        this.loaded.add('piano')
         this.emit()
       },
     }).connect(this.output)
@@ -87,21 +118,41 @@ class Engine {
     this.voices.set('piano', piano)
     this.voices.set('neon', neon)
     this.voices.set('pad', pad)
+    this.loadGuitar(this.current)
   }
 
-  get isPianoLoaded() {
-    return this.pianoLoaded
+  /** Guitars download only when first picked */
+  private loadGuitar(name: InstrumentName) {
+    const g = GUITARS[name]
+    if (!g || !this.output || this.voices.has(name)) return
+    const sampler = new Tone.Sampler({
+      urls: guitarUrls(g.files),
+      baseUrl: `${GUITAR_BASE}${g.dir}/`,
+      release: g.release,
+      volume: g.volume,
+      onload: () => {
+        this.loaded.add(name)
+        this.emit()
+      },
+    }).connect(this.output)
+    this.voices.set(name, sampler)
+  }
+
+  /** False while the current instrument's samples are still downloading (the synth plays meanwhile) */
+  get isLoaded() {
+    return this.loaded.has(this.current)
   }
 
   private voice(): Voice | undefined {
-    // Fall back to the neon synth while the piano samples are still downloading
-    if (this.current === 'piano' && !this.pianoLoaded) return this.voices.get('neon')
+    // Fall back to the neon synth while samples are still downloading
+    if (!this.loaded.has(this.current)) return this.voices.get('neon')
     return this.voices.get(this.current)
   }
 
   setInstrument(name: InstrumentName) {
     this.panic()
     this.current = name
+    this.loadGuitar(name)
   }
 
   setVolume(db: number) {

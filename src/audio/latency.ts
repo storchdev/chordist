@@ -63,7 +63,7 @@ export function probeLatency(e: KeyboardEvent): LatencyProbe {
         `| Tone lookAhead ${ms(lookAhead)}`,
         `| device output ${ms(device)}`,
         `| other ${ms(other)} (${how})`,
-        engine.isPianoLoaded ? '' : '| piano not loaded (synth fallback)',
+        engine.isLoaded ? '' : '| samples not loaded (synth fallback)',
       )
     },
   }
