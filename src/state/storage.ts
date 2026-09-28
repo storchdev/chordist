@@ -12,6 +12,9 @@ export interface Binding {
   target: BindingTarget
 }
 
+export type SyncMode = 'off' | '1/16' | '1/8' | '1/4' | 'bar'
+export const SYNC_MODES: SyncMode[] = ['off', '1/16', '1/8', '1/4', 'bar']
+
 export interface Settings {
   tonic: Tonic
   octave: number
@@ -21,6 +24,11 @@ export interface Settings {
   bass: boolean
   /** Whether the chromatic bass keys make a sound on their own (otherwise they only set a chord's bass) */
   bassKeysSound: boolean
+  /** Rhythm/strum pattern id (see audio/patterns.ts) */
+  pattern: string
+  bpm: number
+  /** Snap chord changes in a running loop to this grid */
+  sync: SyncMode
   bindings: Binding[]
 }
 
@@ -32,6 +40,9 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceLeading: true,
   bass: true,
   bassKeysSound: false,
+  pattern: 'block',
+  bpm: 100,
+  sync: '1/8',
   bindings: [],
 }
 

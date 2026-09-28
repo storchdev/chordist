@@ -5,6 +5,7 @@ import { ChordDisplay } from './components/ChordDisplay'
 import { DiatonicStrip } from './components/DiatonicStrip'
 import { KeyMap } from './components/KeyMap'
 import { Piano } from './components/Piano'
+import { RhythmPanel } from './components/RhythmPanel'
 import { useChordKeyboard, type PlayedChord } from './input/useChordKeyboard'
 import { accidentalText, bassDegreeName, TONICS } from './music/theory'
 import { useSettings } from './state/storage'
@@ -23,7 +24,7 @@ function Toggle({ on, label, hint, onClick }: { on: boolean; label: string; hint
 export default function App() {
   const [settings, setSettings] = useSettings()
   const [capturing, setCapturing] = useState(false)
-  const { held, last, sustain, shift, pedal, clearPedal } = useChordKeyboard({ settings, setSettings, suspended: capturing })
+  const { held, last, sustain, shift, pedal, clearPedal, step } = useChordKeyboard({ settings, setSettings, suspended: capturing })
   const [history, setHistory] = useState<PlayedChord[]>([])
 
   useEffect(() => engine.setInstrument(settings.instrument), [settings.instrument])
@@ -36,7 +37,10 @@ export default function App() {
   const blurAfter = (e: MouseEvent) => (e.target as HTMLElement).closest('button')?.blur()
 
   return (
-    <div className="bg-blobs mx-auto flex max-w-7xl flex-col gap-6 p-6" onClickCapture={(e) => setTimeout(() => blurAfter(e))}>
+    <div className="bg-blobs mx-auto flex max-w-7xl flex-col gap-6 p-6" onClickCapture={(e) => setTimeout(() => blurAfter(e))}
+      // Dropdowns keep focus after a pick, which would swallow the chord keys
+      onChangeCapture={(e) => e.target instanceof HTMLSelectElement && e.target.blur()}
+    >
       <header className="flex flex-wrap items-center gap-4">
         <h1 className="neon-text font-display text-4xl font-black tracking-[0.3em]">CHORDIST</h1>
         <div className="flex flex-wrap gap-1">
@@ -68,6 +72,7 @@ export default function App() {
             </option>
           ))}
         </select>
+        <RhythmPanel settings={settings} setSettings={setSettings} step={step} />
         <label className="flex items-center gap-2 text-sm text-white/60">
           vol
           <input

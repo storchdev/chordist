@@ -33,6 +33,8 @@ src/
   input/spec.ts       held modifier keys + degree + shift → ChordSpec (precedence rules live here)
   input/useChordKeyboard.ts  global keydown/keyup handling, playing/releasing, controls
   audio/engine.ts     Tone.js singleton; ref-counted note on/off, sustain pedal, instruments
+  audio/patterns.ts   Rhythm/strum pattern definitions (hold strums + looping 16th-step grids)
+  audio/sequencer.ts  Lookahead scheduler that loops one pattern over a voicing
   state/storage.ts    Settings + custom bindings, persisted to localStorage
   components/         Pure-ish UI (display, piano, key map, bindings panel)
 ```
@@ -63,6 +65,10 @@ releasing the degree key releases the chord (Space = sustain pedal).
 | `Z` / `X` (held) | One-off octave down / up for chords and bass notes. Applied after voice leading and not fed back into it |
 | `/` + `1`–`7` | Slash bass layer: silently **latches that scale degree as a pedal** bass under following chords. `` ` `` flattens, `Shift` sharpens. Tap `/` alone (or `Esc`) to clear. `/` + a bass key latches that note too (also silent) |
 | `Space` | Sustain pedal |
+| `R` / `Shift+R` | Next / previous rhythm pattern |
+| `V` / `B` | Tempo −5 / +5 BPM (`Shift`: ±1) |
+| `N` | Tap tempo |
+| `C` / `Shift+C` | Cycle chord-change sync: off / 1/16 / 1/8 / 1/4 / bar |
 | `←` `→` | Tonic around the circle of fifths |
 | `↑` `↓` | Octave |
 | `Tab` / `Enter` | Toggle voice leading / bass note |
@@ -77,6 +83,24 @@ Upper voice leading is confined to a window around the octave setting with a pul
 center (`voicing.ts` constants), so long progressions don't drift up or down. Keep that invariant.
 Symbols use explicit "add" for extensions (`G7addb9`) to match the user's mental model.
 
+### Rhythm patterns
+
+Every chord (including custom binds) plays through the current pattern (`settings.pattern`).
+- `hold` patterns (block, strums, harp roll) sound once and hold while the key is down, via ref-counted `noteOn`.
+- `loop` patterns are 16th-step grids built from the voicing (`build(v)`), looped by one persistent
+  `Sequencer` clock at `settings.bpm`. Steps are absolute; a pattern plays `step % pattern.steps`.
+- Sync (`settings.sync`, `C` key): a chord change during a loop (or within a bar of it stopping) snaps to
+  the NEXT grid point (1/16, 1/8, 1/4, bar) and keeps the bar position; the old chord keeps looping until then.
+  Only a press just after a grid point (≤25% of the grid, max 80 ms) counts as late for it → come in on the
+  next free 16th playing the missed point's hit. Never round to "nearest": mid-beat presses would fire instantly.
+  Sync off (or clock idle) → restart the pattern at step 0 right away.
+- Chord swaps happen inside the clock's tick: release old notes, then attack new ones, same tick. Never run
+  two sequencers at once; they'd fight over shared notes. Releasing the key that owns the loop stops it.
+- 30 ms lookahead so a chord change can't be followed by already-queued hits of the old chord.
+- Pattern hits release via a guarded timer (`engine.releaseLater`), not a scheduled release, because
+  PolySynth resolves releases late and would cut off a newer attack of the same note.
+- To add a pattern: append to `PATTERNS` in `audio/patterns.ts`; the UI and `R` cycling pick it up.
+
 ### Custom bindings
 
 Any key + optional Shift/Alt can be bound to a chord. Custom bindings are checked **before**
@@ -89,18 +113,23 @@ Ctrl/Meta combos are never captured so browser shortcuts keep working.
 
 ## Conventions
 
+- `<select>`s are blurred after change (App `onChangeCapture`); focused form fields swallow the chord keys.
+
 - Add new keys in `input/keymap.ts` first, then `spec.ts`/hook, then the `KeyMap.tsx` legend. Keep the AGENTS table in sync.
 - Settings shape changes: bump the storage key or merge defaults so old localStorage doesn't break.
 - Engine notes are ref-counted: always pair `noteOn`/`noteOff` with the same MIDI list.
+- Always release a note on the voice it was attacked on (`attackVoice` / `releaseOn`), never `this.voice()`.
+  The active voice changes when the piano finishes loading (synth fallback before that) and on instrument switch.
 
 ## Open questions / roadmap (user is still deciding)
 
 - Root-note modifiers beyond ♭root (♯root?)
 - Chromatic bass spelling is theory-strict (♭2 of Eb = Fb). Maybe prefer simpler enharmonics.
-- Bass keys ate most left-hand letters; free for custom binds: R C V B N . (plus any Shift/Alt combo)
+- Bass keys ate most left-hand letters; free for custom binds: only `.` (plus any Shift/Alt combo). Running low; consider a layer/F-keys for future controls
 - Should the pedal persist across reloads? (currently in-memory only)
 - Shift on vii°: currently → minor. Maybe major VII is more useful.
 - Whether modifiers pressed *while* a chord is held should re-voice it live.
 - More extension ergonomics (6/add2/add4 vs 9/11/13, "9 chord" shorthand instead of 7add9).
 - Nicer spelling for ♭ degrees in flat keys (♭VI in Db currently spells as A).
+- Rhythm: swing; per-pattern accents/humanize; user-defined patterns.
 - MIDI output, recording/looping, chord progression presets.

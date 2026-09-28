@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { engine } from '../audio/engine'
+import { patternById, PATTERNS } from '../audio/patterns'
+import { Sequencer } from '../audio/sequencer'
 import { Note } from 'tonal'
 import { bassDegreeName, resolveSpec, resolveSymbol, TONICS, type BassSpec, type ChordSpec, type ResolvedChord } from '../music/theory'
 import { pianoRowBass, voiceChord, type Voicing } from '../music/voicing'
-import type { Binding, Settings } from '../state/storage'
+import { SYNC_MODES, type Binding, type Settings, type SyncMode } from '../state/storage'
 import { BASS_KEYS, CONTROL_KEYS, DEGREE_KEYS, MODIFIER_CODES, OCTAVE_KEYS, QUALITY_KEYS, SLASH_KEY } from './keymap'
 import { buildSpec } from './spec'
 
@@ -27,6 +29,13 @@ function isTyping(target: EventTarget | null) {
   return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
 }
 
+/** Sync grid size in 16th steps; 'bar' is one loop of the pattern */
+function syncQuantum(sync: SyncMode, patternSteps: number): number | null {
+  return { off: null, '1/16': 1, '1/8': 2, '1/4': 4, bar: patternSteps }[sync]
+}
+
+export const clampBpm = (bpm: number) => Math.round(Math.min(240, Math.max(40, bpm)))
+
 function findBinding(bindings: Binding[], e: KeyboardEvent) {
   return bindings.find((b) => b.code === e.code && b.shift === e.shiftKey && b.alt === e.altKey)
 }
@@ -39,6 +48,8 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
   /** Latched slash bass (pedal point) applied under every chord until cleared */
   const [pedal, setPedalState] = useState<BassSpec | null>(null)
   const pedalRef = useRef<BassSpec | null>(null)
+  /** Current step of the looping pattern, for the UI */
+  const [step, setStep] = useState<{ index: number; steps: number } | null>(null)
 
   const settingsRef = useRef(settings)
   settingsRef.current = settings
@@ -50,6 +61,10 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
   const prevUpper = useRef<number[] | null>(null)
   const prevBass = useRef<number | null>(null)
   const hitCount = useRef(0)
+  /** One clock loops the current chord's pattern; `loopOwner` is the key whose release stops it */
+  const seq = useRef<Sequencer | null>(null)
+  const loopOwner = useRef<string | null>(null)
+  const taps = useRef<number[]>([])
 
   useEffect(() => {
     const down = new Set<string>()
@@ -66,6 +81,14 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
       let n = 0
       for (const code of heldRef.current) n += OCTAVE_KEYS[code] ?? 0
       return n
+    }
+
+    seq.current ??= new Sequencer(() => settingsRef.current.bpm, setStep)
+    const sequencer = seq.current
+
+    const stopSeq = () => {
+      if (sequencer.running) sequencer.stop()
+      loopOwner.current = null
     }
 
     const play = (code: string, chord: ResolvedChord, spec: ChordSpec | null) => {
@@ -91,8 +114,16 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
         if (voicing.bass !== null) prevBass.current = voicing.bass
       }
       const notes = voicing.bass === null ? voicing.upper : [voicing.bass, ...voicing.upper]
-      playing.current.set(code, notes)
-      engine.noteOn(notes)
+      // A new chord always takes over the loop, even if the previous chord's key is still down
+      const pattern = patternById(s.pattern)
+      if (pattern.kind === 'loop') {
+        sequencer.play(pattern, voicing, syncQuantum(s.sync, pattern.steps))
+        loopOwner.current = code
+      } else {
+        stopSeq()
+        playing.current.set(code, notes)
+        engine.noteOn(notes, 0.8, pattern.strum)
+      }
       setLast({ chord, spec, voicing, hit: ++hitCount.current })
     }
 
@@ -114,6 +145,7 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
     }
 
     const stop = (code: string) => {
+      if (loopOwner.current === code) stopSeq()
       const notes = playing.current.get(code)
       if (!notes) return
       playing.current.delete(code)
@@ -219,7 +251,37 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
         case CONTROL_KEYS.bass:
           setSettings((p) => ({ ...p, bass: !p.bass }))
           break
+        case CONTROL_KEYS.pattern: {
+          const dir = e.shiftKey ? -1 : 1
+          setSettings((p) => {
+            const i = PATTERNS.findIndex((x) => x.id === p.pattern)
+            return { ...p, pattern: PATTERNS[(i + dir + PATTERNS.length) % PATTERNS.length].id }
+          })
+          break
+        }
+        case CONTROL_KEYS.tempoDown:
+        case CONTROL_KEYS.tempoUp: {
+          const delta = (e.code === CONTROL_KEYS.tempoUp ? 1 : -1) * (e.shiftKey ? 1 : 5)
+          setSettings((p) => ({ ...p, bpm: clampBpm(p.bpm + delta) }))
+          break
+        }
+        case CONTROL_KEYS.tapTempo: {
+          const now = performance.now()
+          const recent = taps.current.filter((t) => now - t < 2000).slice(-4)
+          taps.current = [...recent, now]
+          if (recent.length) {
+            const avg = (now - recent[0]) / recent.length
+            setSettings((p) => ({ ...p, bpm: clampBpm(60000 / avg) }))
+          }
+          break
+        }
+        case CONTROL_KEYS.sync: {
+          const dir = e.shiftKey ? -1 : 1
+          setSettings((p) => ({ ...p, sync: SYNC_MODES[(SYNC_MODES.indexOf(p.sync) + dir + SYNC_MODES.length) % SYNC_MODES.length] }))
+          break
+        }
         case CONTROL_KEYS.panic:
+          stopSeq()
           playing.current.clear()
           engine.panic()
           setPedal(null)
@@ -244,6 +306,7 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
       setShift(false)
       heldRef.current.clear()
       syncHeld()
+      stopSeq()
       playing.current.clear()
       engine.setSustain(false)
       setSustain(false)
@@ -254,6 +317,7 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
     window.addEventListener('keyup', onUp)
     window.addEventListener('blur', onBlur)
     return () => {
+      stopSeq()
       window.removeEventListener('keydown', onDown)
       window.removeEventListener('keyup', onUp)
       window.removeEventListener('blur', onBlur)
@@ -265,5 +329,5 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
     setPedalState(null)
   }
 
-  return { held, last, sustain, shift, pedal, clearPedal }
+  return { held, last, sustain, shift, pedal, clearPedal, step }
 }
