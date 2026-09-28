@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import { engine } from '../audio/engine'
 import { Note } from 'tonal'
 import { bassDegreeName, resolveSpec, resolveSymbol, TONICS, type BassSpec, type ChordSpec, type ResolvedChord } from '../music/theory'
-import { placeBass, voiceChord, type Voicing } from '../music/voicing'
+import { pianoRowBass, voiceChord, type Voicing } from '../music/voicing'
 import type { Binding, Settings } from '../state/storage'
 import { BASS_KEYS, CONTROL_KEYS, DEGREE_KEYS, MODIFIER_CODES, OCTAVE_KEYS, QUALITY_KEYS, SLASH_KEY } from './keymap'
 import { buildSpec } from './spec'
@@ -77,6 +77,11 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
         prev: prevUpper.current,
         prevBass: prevBass.current,
       })
+      // With solo on, a held bass key is already sounding at its fixed pitch; put the chord's bass on that same note
+      let heldBassKey: Extract<BassSpec, { kind: 'degree' }> | undefined
+      for (const c of heldRef.current) heldBassKey = BASS_KEYS[c] ?? heldBassKey
+      if (s.bassKeysSound && heldBassKey && voicing.bass !== null) voicing = { ...voicing, bass: rowBassMidi(heldBassKey) }
+
       const shift = octaveShift() * 12
       if (shift) {
         // One-off: transpose after voice leading and don't feed it back, so the next chord leads from where we were
@@ -91,11 +96,16 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
       setLast({ chord, spec, voicing, hit: ++hitCount.current })
     }
 
-    /** Sound a bass note on its own (bass keys with the solo toggle on) */
-    const playBassNote = (code: string, bass: Extract<BassSpec, { kind: 'degree' }>) => {
+    /** Piano-row bass keys map to fixed pitches (no voice leading) so the row plays like a keyboard */
+    const rowBassMidi = (bass: Extract<BassSpec, { kind: 'degree' }>) => {
       const s = settingsRef.current
       const pc = Note.chroma(bassDegreeName(s.tonic, bass.degree, bass.accidental)) ?? 0
-      let midi = placeBass(pc, s.octave, s.voiceLeading, prevBass.current)
+      return pianoRowBass(Note.chroma(s.tonic) ?? 0, pc, s.octave)
+    }
+
+    /** Sound a bass note on its own (bass keys with the solo toggle on) */
+    const playBassNote = (code: string, bass: Extract<BassSpec, { kind: 'degree' }>) => {
+      let midi = rowBassMidi(bass)
       const shift = octaveShift() * 12
       if (shift) midi += shift
       else prevBass.current = midi

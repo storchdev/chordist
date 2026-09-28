@@ -122,7 +122,7 @@ export default function App() {
         <div className="flex flex-col gap-6">
           <KeyMap
             tonic={settings.tonic}
-            toggles={{ KeyQ: settings.bassKeysSound, Tab: settings.voiceLeading, Enter: settings.bass }}
+            toggles={{ KeyQ: settings.bassKeysSound, Tab: settings.voiceLeading, Enter: settings.bass, Slash: pedal !== null }}
             held={held}
             shift={shift}
             sustain={sustain}

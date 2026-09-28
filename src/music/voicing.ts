@@ -32,8 +32,23 @@ export function placeBass(pc: number, octave: number, voiceLeading: boolean, pre
   return n < 24 ? n + 12 : n
 }
 
-const LOW = 48
-const HIGH = 88
+/**
+ * Fixed pitch for the piano-row bass keys: the tonic sits in the bass octave and the row
+ * climbs chromatically from it, so the keys never wrap down mid-scale (in B: A = B2 … J = A#3).
+ */
+export function pianoRowBass(tonicPc: number, bassPc: number, octave: number): number {
+  return 12 * (octave - 1) + tonicPc + ((bassPc - tonicPc + 12) % 12)
+}
+
+/**
+ * Voice leading stays inside a window around the octave setting, with a gentle pull back
+ * toward its center. Without this, "move as little as possible" ratchets steadily upward
+ * (or downward) over progressions like the circle of fifths.
+ */
+const WINDOW_BELOW = 5 // lowest core note may sit this far below the octave's C (G3 at octave 4)
+const WINDOW_ABOVE = 7 // ...or this far above it (G4)
+const CENTER_OFFSET = 7 // target average pitch: G above the octave's C
+const GRAVITY = 0.35 // per note, per semitone off-center
 
 function closeVoicing(pcs: number[], lowest: number): number[] {
   const out: number[] = []
@@ -59,16 +74,17 @@ export function voiceChord(chord: ResolvedChord, opts: VoicingOptions): Voicing 
 
   let core: number[]
   if (opts.voiceLeading && opts.prev && opts.prev.length) {
-    // Try every inversion at a few octave placements, keep the smoothest one
+    const home = 12 * (opts.octave + 1)
+    const center = home + CENTER_OFFSET
     const prevCore = opts.prev.slice(0, corePcs.length)
+    const avg = (xs: number[]) => xs.reduce((sum, x) => sum + x, 0) / xs.length
     let best: number[] | null = null
     let bestScore = Infinity
+    // Every inversion, at every octave whose lowest note lands in the window
     for (let inv = 0; inv < corePcs.length; inv++) {
       const rotated = [...corePcs.slice(inv), ...corePcs.slice(0, inv)]
-      for (const start of [prevCore[0] - 7, prevCore[0] - 3, prevCore[0], prevCore[0] + 3]) {
-        const cand = closeVoicing(rotated, start)
-        if (cand[0] < LOW || cand[cand.length - 1] > HIGH) continue
-        const score = distance(cand, prevCore)
+      for (let cand = closeVoicing(rotated, home - WINDOW_BELOW); cand[0] <= home + WINDOW_ABOVE; cand = cand.map((n) => n + 12)) {
+        const score = distance(cand, prevCore) + GRAVITY * cand.length * Math.abs(avg(cand) - center)
         if (score < bestScore) {
           bestScore = score
           best = cand

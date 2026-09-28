@@ -58,7 +58,7 @@ releasing the degree key releases the chord (Space = sustain pedal).
 | `\` | Fully diminished 7th (forces dim triad + °7) |
 | `I O P` / `K L` / `M ,` | Add ♭9 9 ♯9 / 11 ♯11 / ♭13 13 |
 | `8` / `9` / `0` | Inversion: 3rd / 5th / 7th in the bass (held). `0` does nothing without a 7th |
-| `A W S E D F T G Y H U J` | One-off bass note, chromatic from the tonic, piano-shaped (`ASDFGHJ` white, `WETYU` black). While held, any chord played uses it as its bass. Silent on its own unless the bass-keys-sound toggle is on |
+| `A W S E D F T G Y H U J` | One-off bass note, chromatic from the tonic, piano-shaped (`ASDFGHJ` white, `WETYU` black). While held, any chord played uses it as its bass. Silent on its own unless the bass-keys-sound toggle is on. When sounding they use fixed pitches (tonic in the bass octave, climbing to J; no voice leading, no mid-row wrap), and a chord played over one takes that same bass pitch |
 | `Q` | Toggle: bass keys sound on their own (persisted, off by default) |
 | `Z` / `X` (held) | One-off octave down / up for chords and bass notes. Applied after voice leading and not fed back into it |
 | `/` + `1`–`7` | Slash bass layer: silently **latches that scale degree as a pedal** bass under following chords. `` ` `` flattens, `Shift` sharpens. Tap `/` alone (or `Esc`) to clear. `/` + a bass key latches that note too (also silent) |
@@ -73,6 +73,8 @@ Bass precedence (low → high): latched pedal → inversion key → held one-off
 Slash chords show figured bass in the roman numeral when the bass is a chord tone (I⁶, V⁴₂),
 otherwise the bass scale degree in parens (IV/(♭7)) so it isn't confused with secondary functions.
 The bass line is voice-led (nearest octave to the previous bass) when voice leading is on.
+Upper voice leading is confined to a window around the octave setting with a pull toward its
+center (`voicing.ts` constants), so long progressions don't drift up or down. Keep that invariant.
 Symbols use explicit "add" for extensions (`G7addb9`) to match the user's mental model.
 
 ### Custom bindings
