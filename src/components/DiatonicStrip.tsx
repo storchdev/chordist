@@ -1,7 +1,7 @@
 import { QUALITY_KEYS, SLASH_KEY } from '../input/keymap'
 import { buildSpec } from '../input/spec'
 import type { QualityMap } from '../music/qualities'
-import { accidentalText, bassDegreeName, resolveSpec, type BassSpec, type Degree, type Tonic } from '../music/theory'
+import { accidentalText, bassDegreeName, resolveSpec, type BassSpec, type ChordType, type Degree, type Tonic } from '../music/theory'
 import type { PlayedChord } from '../input/useChordKeyboard'
 
 const DEGREES: Degree[] = [1, 2, 3, 4, 5, 6, 7]
@@ -14,6 +14,7 @@ export function DiatonicStrip({
   pedal,
   last,
   qualities,
+  chordType,
 }: {
   tonic: Tonic
   held: ReadonlySet<string>
@@ -21,6 +22,7 @@ export function DiatonicStrip({
   pedal: BassSpec | null
   last: PlayedChord | null
   qualities: QualityMap
+  chordType: ChordType | null
 }) {
   if (held.has(SLASH_KEY)) {
     // Slash layer: the number keys pick a bass note instead of a chord
@@ -44,7 +46,7 @@ export function DiatonicStrip({
   return (
     <div className="grid grid-cols-7 gap-2">
       {DEGREES.map((d) => {
-        const chord = resolveSpec(buildSpec(d, held, shift, pedal, qualities), tonic)
+        const chord = resolveSpec(buildSpec(d, held, shift, pedal, qualities, chordType), tonic)
         const active = last?.spec?.degree === d
         return (
           <div

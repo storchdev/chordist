@@ -1,4 +1,4 @@
-import { Chord, Interval, Key, Note } from 'tonal'
+import { Chord, ChordType as TonalChordType, Interval, Key, Note } from 'tonal'
 
 /** All tonics are major keys. Spelled the way musicians usually pick them. */
 export const TONICS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'] as const
@@ -22,12 +22,22 @@ export type BassSpec = { kind: 'chordTone'; index: 1 | 2 | 3 } | { kind: 'degree
  * A chord described relative to the current key. This is what the keyboard
  * produces and what relative custom bindings store, so they transpose with the tonic.
  */
+/** A chord shape without a root (from a symbol like "m7b5" or intervals like "1 b3 b5 b7") */
+export interface ChordType {
+  /** Symbol suffix, e.g. "m7b5" ('' for a major triad) */
+  name: string
+  /** Tonal interval names from the root, ascending, e.g. ["1P", "3m", "5d", "7m"] */
+  intervals: string[]
+}
+
 export interface ChordSpec {
   degree: Degree
   flatRoot: boolean
   quality: Quality
   seventh: Seventh | null
   extensions: Extension[]
+  /** Overrides quality + seventh with a custom shape (held chord-type bind) */
+  chordType?: ChordType | null
   /** Optional since relative bindings saved before bass support don't have it */
   bass?: BassSpec | null
 }
@@ -129,6 +139,15 @@ function romanSuffix(q: Quality, s: Seventh | null): string {
   }
 }
 
+/** Roman-numeral suffixes for common chord types; others use the symbol name */
+const TYPE_ROMAN: Record<string, string> = { '': '', m: '', m7: '7', m7b5: 'ø7', dim: '°', dim7: '°7', aug: '+', maj7: 'maj7', '7': '7' }
+
+/** Core (within the octave) and extension intervals of a chord type */
+export function splitChordType(t: ChordType): { core: string[]; ext: string[] } {
+  const semis = (i: string) => Interval.semitones(i) ?? 0
+  return { core: t.intervals.filter((i) => semis(i) < 12), ext: t.intervals.filter((i) => semis(i) >= 12) }
+}
+
 function sortExtensions(exts: Extension[]): Extension[] {
   return EXTENSIONS.filter((e) => exts.includes(e))
 }
@@ -138,15 +157,22 @@ export function resolveSpec(spec: ChordSpec, tonic: Tonic): ResolvedChord {
   const rootName = alter(degreeNote, spec.flatRoot ? -1 : 0)
   const exts = sortExtensions(spec.extensions)
 
-  const coreIvls = [...QUALITY_INTERVALS[spec.quality]]
-  if (spec.seventh) coreIvls.push(SEVENTH_INTERVAL[spec.seventh])
-  const extIvls = exts.map((e) => EXTENSION_INTERVAL[e])
+  const type = spec.chordType ?? null
+  const typeParts = type ? splitChordType(type) : null
+  const coreIvls = typeParts ? [...typeParts.core] : [...QUALITY_INTERVALS[spec.quality]]
+  if (!type && spec.seventh) coreIvls.push(SEVENTH_INTERVAL[spec.seventh])
+  const extIvls = [...(typeParts?.ext ?? []), ...exts.map((e) => EXTENSION_INTERVAL[e]).filter((i) => !typeParts?.ext.includes(i))]
 
   const addText = exts.map((e) => 'add' + e).join('')
-  const upper = spec.quality === 'maj' || spec.quality === 'aug' || spec.quality.startsWith('sus')
+  const upper = type
+    ? !coreIvls.includes('3m') || coreIvls.includes('3M')
+    : spec.quality === 'maj' || spec.quality === 'aug' || spec.quality.startsWith('sus')
   const numeral = ROMAN[spec.degree - 1]
 
-  const noteNames = [...coreIvls, ...extIvls].map((i) => Note.transpose(rootName, i))
+  // Custom types on a ♭ root can land on double flats (Gbm7b5 → Bbb); keep them readable
+  const noteNames = [...coreIvls, ...extIvls]
+    .map((i) => Note.transpose(rootName, i))
+    .map((n) => (type && /bb|##/.test(n) ? Note.simplify(n) : n))
   const rootPc = Note.chroma(rootName) ?? 0
 
   let bassName: string | null = null
@@ -155,12 +181,18 @@ export function resolveSpec(spec: ChordSpec, tonic: Tonic): ResolvedChord {
   const bassPc = bassName === null ? null : (Note.chroma(bassName) ?? 0)
   const slash = bassPc !== null && bassPc !== rootPc
 
-  let romanText = (spec.flatRoot ? '♭' : '') + (upper ? numeral : numeral.toLowerCase()) + romanSuffix(spec.quality, spec.seventh)
+  const typeSuffix = type ? (TYPE_ROMAN[type.name] ?? (!upper && /^m(?!aj)/.test(type.name) ? type.name.slice(1) : type.name)) : ''
+  let romanText =
+    (spec.flatRoot ? '♭' : '') + (upper ? numeral : numeral.toLowerCase()) + (type ? typeSuffix : romanSuffix(spec.quality, spec.seventh))
   if (slash) {
     // Figured bass when the bass is a chord tone of a triad/7th chord, otherwise the bass scale degree: IV/(♭7)
     const toneIndex = coreIvls.findIndex((_, i) => (Note.chroma(noteNames[i]) ?? -1) === bassPc)
-    const figure = spec.quality.startsWith('sus') ? undefined : (spec.seventh ? SEVENTH_FIGURES : TRIAD_FIGURES)[toneIndex]
-    if (figure) romanText = spec.seventh ? romanText.replace(/7(?!.*7)/, figure) : romanText + figure
+    const hasSeventh = type ? coreIvls.length === 4 : !!spec.seventh
+    const figurable = type
+      ? (coreIvls.includes('3m') || coreIvls.includes('3M')) && (coreIvls.length === 3 || (hasSeventh && romanText.includes('7')))
+      : !spec.quality.startsWith('sus')
+    const figure = figurable ? (hasSeventh ? SEVENTH_FIGURES : TRIAD_FIGURES)[toneIndex] : undefined
+    if (figure) romanText = hasSeventh ? romanText.replace(/7(?!.*7)/, figure) : romanText + figure
     else
       romanText +=
         spec.bass?.kind === 'degree'
@@ -169,7 +201,7 @@ export function resolveSpec(spec: ChordSpec, tonic: Tonic): ResolvedChord {
   }
 
   return {
-    symbol: rootName + chordSuffix(spec.quality, spec.seventh) + addText + (slash ? '/' + bassName : ''),
+    symbol: rootName + (type ? type.name : chordSuffix(spec.quality, spec.seventh)) + addText + (slash ? '/' + bassName : ''),
     roman: romanText + addText,
     rootName,
     rootPc,
@@ -205,6 +237,74 @@ export function resolveSymbol(symbol: string): ResolvedChord | null {
     bassName: slash ? bass : null,
     bassPc: slash ? bassPc : null,
   }
+}
+
+/** Spellings tonal doesn't know, mapped to ones it does */
+const TYPE_ALIASES: [RegExp, string][] = [
+  [/ø7$/, 'ø'],
+  [/dim7b5$/, 'm7b5'],
+  [/half-?dim(inished)?7?$/i, 'm7b5'],
+  [/Δ7?/, 'maj7'],
+]
+/** Scale-degree numbers → notes above C4, for parsing "1 b3 b5 b7" */
+const DEGREE_NOTES: Record<number, string> = {
+  1: 'C4', 2: 'D4', 3: 'E4', 4: 'F4', 5: 'G4', 6: 'A4', 7: 'B4', 8: 'C5', 9: 'D5', 10: 'E5', 11: 'F5', 12: 'G5', 13: 'A5',
+}
+
+function degreeInterval(token: string): string | null {
+  const m = /^([b#]*)(\d+)$/.exec(token)
+  const base = m && DEGREE_NOTES[Number(m[2])]
+  if (!m || !base) return null
+  const ivl = Interval.distance('C4', base[0] + m[1] + base.slice(1))
+  return ivl || null
+}
+
+/** Canonical name for a set of intervals, if tonal knows the chord */
+function typeName(intervals: string[]): string | null {
+  const t = TonalChordType.all().find((c) => c.intervals.join() === intervals.join())
+  if (!t) return null
+  return t.aliases[0] === 'M' ? '' : t.aliases[0]
+}
+
+/**
+ * Parse a chord type, ignoring any root: a symbol ("Cm7b5", "m7b5", "ø7", "7b9") or 2+ intervals
+ * as scale degrees ("1 b3 b5 b7"), semitones including 0 ("0 3 6 10") or tonal names ("1P 3m 5d 7m").
+ */
+export function parseChordType(text: string): ChordType | null {
+  const tokens = text.trim().split(/[\s,]+/).filter(Boolean)
+  if (!tokens.length) return null
+  if (tokens.length > 1) {
+    let ivls: (string | null)[]
+    if (tokens.every((t) => /^\d+$/.test(t)) && tokens.includes('0')) ivls = tokens.map((t) => Interval.fromSemitones(Number(t)) || null)
+    else if (tokens.every((t) => /^[b#]*\d+$/.test(t))) ivls = tokens.map(degreeInterval)
+    else ivls = tokens.map((t) => (Interval.get(t).empty ? null : Interval.get(t).name))
+    if (ivls.some((i) => i === null)) return null
+    const sorted = [...new Set(ivls as string[])].sort((a, b) => (Interval.semitones(a) ?? 0) - (Interval.semitones(b) ?? 0))
+    return { name: typeName(sorted) ?? `(${tokens.join(' ')})`, intervals: sorted }
+  }
+  let symbol = tokens[0]
+  for (const [re, to] of TYPE_ALIASES) symbol = symbol.replace(re, to)
+  const c = Chord.get(symbol)
+  if (c.empty) return null
+  return { name: typeName(c.intervals) ?? symbol.slice(c.tonic?.length ?? 0), intervals: c.intervals }
+}
+
+/**
+ * Move a chord symbol written in key `from` to key `to` (root and slash bass move by the
+ * interval between the tonics, the chord type is kept). Unparseable symbols come back unchanged.
+ */
+export function transposeSymbol(symbol: string, from: Tonic, to: Tonic): string {
+  if (from === to) return symbol
+  const [head, bassPart] = symbol.trim().split('/')
+  const [root, type] = Chord.tokenize(head)
+  if (!root) return symbol
+  const ivl = Interval.distance(from, to)
+  const move = (n: string) => {
+    const t = Note.transpose(n, ivl)
+    // Tonic intervals like F# → Db are odd (diminished 4th); respell the results nobody writes
+    return /(bb|##)$|^(Cb|Fb|E#|B#)$/.test(t) ? Note.simplify(t) : t
+  }
+  return move(root) + type + (bassPart ? '/' + move(Note.pitchClass(bassPart)) : '')
 }
 
 export function midiToName(midi: number): string {

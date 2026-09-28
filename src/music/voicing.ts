@@ -39,7 +39,7 @@ function role(s: number): Role {
 
 /**
  * Pick which chord tones to play for a voice count. Fewer notes drops the least defining
- * tones first: the 5th, then the root when the bass already plays it, then extensions from
+ * tones first: the perfect 5th (a ♭5/♯5 defines the chord, so it ranks right after the 3rd), then the root when the bass already plays it, then extensions from
  * the top. More notes returns how many doublings to stack on top (see `voiceChord`).
  */
 function chooseTones(chord: ResolvedChord, voices: VoiceCount, bassIsRoot: boolean) {
@@ -50,10 +50,11 @@ function chooseTones(chord: ResolvedChord, voices: VoiceCount, bassIsRoot: boole
   const priority = [
     ...(bassIsRoot ? [] : of('root')),
     ...of('third'),
+    ...of('fifth').filter((s) => s !== 7),
     ...of('seventh'),
     ...chord.extensions,
     ...(bassIsRoot ? of('root') : []),
-    ...of('fifth'),
+    ...of('fifth').filter((s) => s === 7),
   ]
   const keep = new Set(priority.slice(0, voices))
   return { core: chord.core.filter((s) => keep.has(s)), extensions: chord.extensions.filter((s) => keep.has(s)), doublings: 0 }

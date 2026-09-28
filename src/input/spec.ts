@@ -1,5 +1,5 @@
 import { qualityFor, type QualityMap } from '../music/qualities'
-import { type BassSpec, type ChordSpec, type Degree, type Extension, type Quality, type Seventh } from '../music/theory'
+import { splitChordType, type BassSpec, type ChordType, type ChordSpec, type Degree, type Extension, type Quality, type Seventh } from '../music/theory'
 import { BASS_KEYS, EXTENSION_KEYS, INVERSION_KEYS, QUALITY_KEYS, SEVENTH_KEYS } from './keymap'
 
 /**
@@ -17,6 +17,8 @@ export function buildSpec(
   shift: boolean,
   pedal: BassSpec | null,
   qualities: QualityMap,
+  /** A held chord-type bind: replaces quality + 7th; root, extensions and bass still come from the keys */
+  chordType: ChordType | null = null,
 ): ChordSpec {
   const flatRoot = held.has(QUALITY_KEYS.flatRoot)
   let quality: Quality = qualityFor(qualities, degree, flatRoot, shift)
@@ -47,9 +49,10 @@ export function buildSpec(
     if (held.has(code) && (bass?.kind !== 'chordTone' || index > bass.index)) bass = { kind: 'chordTone', index }
   }
   // No 7th to put in the bass → leave it in root position
-  if (bass?.kind === 'chordTone' && bass.index === 3 && !seventh) bass = pedal
+  const hasSeventh = chordType ? splitChordType(chordType).core.length > 3 : seventh !== null
+  if (bass?.kind === 'chordTone' && bass.index === 3 && !hasSeventh) bass = pedal
   // Held set iterates in press order, so the most recently pressed bass key wins
   for (const code of held) if (BASS_KEYS[code]) bass = BASS_KEYS[code]
 
-  return { degree, flatRoot, quality, seventh, extensions, bass }
+  return { degree, flatRoot, quality, seventh, extensions, bass, ...(chordType && { chordType }) }
 }

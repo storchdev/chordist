@@ -26,7 +26,7 @@ function Toggle({ on, label, hint, onClick }: { on: boolean; label: string; hint
 export default function App() {
   const [settings, setSettings] = useSettings()
   const [capturing, setCapturing] = useState(false)
-  const { held, last, sustain, shift, pedal, clearPedal, step } = useChordKeyboard({ settings, setSettings, suspended: capturing })
+  const { held, last, sustain, shift, pedal, clearPedal, step, heldType } = useChordKeyboard({ settings, setSettings, suspended: capturing })
   const [history, setHistory] = useState<PlayedChord[]>([])
 
   useEffect(() => engine.setInstrument(settings.instrument), [settings.instrument])
@@ -150,7 +150,7 @@ export default function App() {
       </div>
 
       <ChordDisplay last={last} tonic={settings.tonic} />
-      <DiatonicStrip tonic={settings.tonic} held={held} shift={shift} pedal={pedal} last={last} qualities={settings.qualities} />
+      <DiatonicStrip tonic={settings.tonic} held={held} shift={shift} pedal={pedal} last={last} qualities={settings.qualities} chordType={heldType} />
       <Piano />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
@@ -176,7 +176,7 @@ export default function App() {
             </div>
           </div>
         </div>
-        <BindingsPanel settings={settings} setSettings={setSettings} last={last} setCapturing={setCapturing} />
+        <BindingsPanel settings={settings} setSettings={setSettings} setCapturing={setCapturing} />
       </div>
     </div>
   )

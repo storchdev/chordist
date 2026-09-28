@@ -87,7 +87,7 @@ The bass line is voice-led (nearest octave to the previous bass) when voice lead
 Upper voice leading is confined to a window around the octave setting with a pull toward its
 center (`voicing.ts` constants), so long progressions don't drift up or down. Keep that invariant.
 Notes-per-chord (`settings.voices`, top-bar "notes" select): `auto` (every chord tone once) or 1–5 upper notes,
-bass not counted. Fewer drops the 5th first, then the root if the bass already plays it, then extensions from the
+bass not counted. Fewer drops the perfect 5th first (♭5/♯5 are kept right after the 3rd), then the root if the bass already plays it, then extensions from the
 top, then the 7th; with no bass the root is kept first. More continues the close-position stack above the top (each extra note = nearest
 core chord tone above), so gaps never exceed the chord's own spacing. Don't double at fixed octaves: that left 12+ semitone holes.
 Lives in `chooseTones` in `voicing.ts`; no key assigned yet.
@@ -119,8 +119,17 @@ Every chord (including custom binds) plays through the current pattern (`setting
 
 Any key + optional Shift/Alt can be bound to a chord. Custom bindings are checked **before**
 built-ins, so they can shadow them (UI warns). Targets:
-- `relative` — a saved `ChordSpec` (from the last played chord); transposes with the tonic.
-- `absolute` — a chord symbol parsed by `tonal` (`Chord.get`); fixed pitch.
+- `relative` — a saved `ChordSpec`; transposes with the tonic. Legacy: the UI no longer creates these
+  ("last played" mode was removed), but saved ones still load and play.
+- `absolute` — "fixed chord" in the UI: a chord symbol parsed by `tonal` (`Chord.get`). Fixed pitch, unless it has `relativeTo` (the key it was
+  written in, default in the UI): then `bindingSymbol` → `transposeSymbol` moves root and slash bass with the tonic.
+  Odd spellings from the transposition (Cb, E#, double accidentals) are simplified.
+- `chordType` — a chord shape (`ChordType`: name + tonal intervals), no root. While the bound key is down, degree
+  keys play that shape on the degree's root (`spec.chordType` overrides quality + 7th; ♭root, inversions, slash bass,
+  extensions and bass keys still apply). Parsed by `parseChordType`: one token = symbol, root ignored (`Cm7b5`, `m7b5`,
+  `ø7`; aliases in `TYPE_ALIASES`, e.g. `dim7b5` → `m7b5`); 2+ tokens = intervals as scale degrees (`1 b3 b5 b7`),
+  semitones incl. 0 (`0 3 6 10`) or tonal names (`1P 3m 5d 7m`). A type bind made without Shift also matches with
+  Shift held. Several held → most recent wins. Example: R = m7b5 → hold R + 1–7 for half-diminished on any degree.
 Held modifiers and the pedal do not affect custom bindings; they play exactly what's saved
 (a relative binding saves the bass too, so slash chords can be bound).
 Ctrl/Meta combos are never captured so browser shortcuts keep working.

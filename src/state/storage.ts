@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { InstrumentName } from '../audio/engine'
-import type { ChordSpec, Tonic } from '../music/theory'
+import type { ChordSpec, ChordType, Tonic } from '../music/theory'
 import { DEFAULT_QUALITY_MAP, type QualityMap } from '../music/qualities'
 import type { VoiceCount } from '../music/voicing'
 
-export type BindingTarget = { kind: 'relative'; spec: ChordSpec } | { kind: 'absolute'; symbol: string }
+export type BindingTarget =
+  | { kind: 'relative'; spec: ChordSpec }
+  /** A chord symbol. With `relativeTo`, it was written in that key and transposes with the tonic */
+  | { kind: 'absolute'; symbol: string; relativeTo?: Tonic }
+  /** Held like a modifier: number keys play this chord type on their own root */
+  | { kind: 'chordType'; chordType: ChordType }
 
 export interface Binding {
   id: string
@@ -65,7 +70,13 @@ function load(): Settings {
     if (!raw) return DEFAULT_SETTINGS
     const saved = JSON.parse(raw)
     // Nested objects merge too, so settings saved by an older version pick up new fields
-    return { ...DEFAULT_SETTINGS, ...saved, qualities: { ...DEFAULT_QUALITY_MAP, ...saved.qualities } }
+    return {
+      ...DEFAULT_SETTINGS,
+      ...saved,
+      qualities: { ...DEFAULT_QUALITY_MAP, ...saved.qualities },
+      // Drop bind kinds that no longer exist (the short-lived 'modifier' kind)
+      bindings: ((saved.bindings ?? []) as Binding[]).filter((b) => ['relative', 'absolute', 'chordType'].includes(b.target.kind)),
+    }
   } catch {
     return DEFAULT_SETTINGS
   }

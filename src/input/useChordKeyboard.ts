@@ -5,7 +5,7 @@ import { probeLatency, type LatencyProbe } from '../audio/latency'
 import { patternById } from '../audio/patterns'
 import { Sequencer } from '../audio/sequencer'
 import { Note } from 'tonal'
-import { bassDegreeName, resolveSpec, resolveSymbol, TONICS, type BassSpec, type ChordSpec, type ResolvedChord } from '../music/theory'
+import { bassDegreeName, resolveSpec, resolveSymbol, TONICS, transposeSymbol, type BassSpec, type ChordSpec, type ChordType, type ResolvedChord, type Tonic } from '../music/theory'
 import { pianoRowBass, voiceChord, type Voicing } from '../music/voicing'
 import { type Binding, type Settings, type SyncMode } from '../state/storage'
 import { BASS_KEYS, CONTROL_KEYS, DEGREE_KEYS, MODIFIER_CODES, OCTAVE_KEYS, QUALITY_KEYS, SLASH_KEY } from './keymap'
@@ -38,8 +38,17 @@ function syncQuantum(sync: SyncMode, patternSteps: number): number | null {
 
 export const clampBpm = (bpm: number) => Math.round(Math.min(240, Math.max(40, bpm)))
 
+type SymbolTarget = Extract<Binding['target'], { kind: 'absolute' }>
+
+/** The symbol a chord-symbol bind plays in the current key */
+export function bindingSymbol(t: SymbolTarget, tonic: Tonic): string {
+  return t.relativeTo ? transposeSymbol(t.symbol, t.relativeTo, tonic) : t.symbol
+}
+
 function findBinding(bindings: Binding[], e: KeyboardEvent) {
-  return bindings.find((b) => b.code === e.code && b.shift === e.shiftKey && b.alt === e.altKey)
+  const exact = bindings.find((b) => b.code === e.code && b.shift === e.shiftKey && b.alt === e.altKey)
+  // A chord-type bind made without Shift still works with Shift held, like any modifier
+  return exact ?? bindings.find((b) => b.target.kind === 'chordType' && b.code === e.code && !b.shift && b.alt === e.altKey)
 }
 
 export function useChordKeyboard({ settings, setSettings, suspended }: Options) {
@@ -52,6 +61,8 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
   const pedalRef = useRef<BassSpec | null>(null)
   /** Current step of the looping pattern, for the UI */
   const [step, setStep] = useState<{ index: number; steps: number } | null>(null)
+  /** Chord type from a held chord-type bind, for previews */
+  const [heldType, setHeldType] = useState<ChordType | null>(null)
 
   const settingsRef = useRef(settings)
   settingsRef.current = settings
@@ -69,7 +80,11 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
 
   useEffect(() => {
     const down = new Set<string>()
+    /** Chord-type binds currently held (bound key → type); the most recently pressed one applies */
+    const types = new Map<string, ChordType>()
+    const currentType = () => [...types.values()].at(-1) ?? null
     const syncHeld = () => setHeld(new Set(heldRef.current))
+    const syncType = () => setHeldType(currentType())
     const setPedal = (p: BassSpec | null) => {
       pedalRef.current = p
       setPedalState(p)
@@ -178,6 +193,13 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
       if (!binding && degree === undefined && !bassKey && !MODIFIER_CODES.has(e.code) && !isControl) return
       e.preventDefault()
 
+      if (binding?.target.kind === 'chordType') {
+        types.delete(e.code) // re-insert so it counts as the most recent
+        types.set(e.code, binding.target.chordType)
+        syncType()
+        return
+      }
+
       if (bassKey && !binding) {
         const latch = heldRef.current.has(SLASH_KEY)
         if (latch) {
@@ -217,8 +239,8 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
         // Resolve now so the chord reflects the modifiers held at press time
         const spec = binding
           ? binding.target.kind === 'relative' ? binding.target.spec : null
-          : buildSpec(degree!, heldRef.current, e.shiftKey, pedalRef.current, s.qualities)
-        const chord = spec ? resolveSpec(spec, s.tonic) : resolveSymbol((binding!.target as { symbol: string }).symbol)
+          : buildSpec(degree!, heldRef.current, e.shiftKey, pedalRef.current, s.qualities, currentType())
+        const chord = spec ? resolveSpec(spec, s.tonic) : resolveSymbol(bindingSymbol(binding!.target as SymbolTarget, s.tonic))
         down.add(e.code)
         const probe = probeLatency(e)
         await engine.start() // only actually waits on the very first key press
@@ -274,6 +296,7 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
       down.delete(e.code)
       setShift(e.shiftKey)
       if (e.code === SLASH_KEY && heldRef.current.has(SLASH_KEY) && !slashUsed) setPedal(null) // tap `/` = clear pedal
+      if (types.delete(e.code)) syncType()
       if (heldRef.current.delete(e.code)) syncHeld()
       stop(e.code)
       if (e.code === CONTROL_KEYS.sustain) {
@@ -286,6 +309,8 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
     const onBlur = () => {
       setShift(false)
       heldRef.current.clear()
+      types.clear()
+      syncType()
       syncHeld()
       stopSeq()
       playing.current.clear()
@@ -310,5 +335,5 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
     setPedalState(null)
   }
 
-  return { held, last, sustain, shift, pedal, clearPedal, step }
+  return { held, last, sustain, shift, pedal, clearPedal, step, heldType }
 }
