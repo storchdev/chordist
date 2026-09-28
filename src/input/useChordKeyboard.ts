@@ -2,12 +2,12 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import * as Tone from 'tone'
 import { engine } from '../audio/engine'
 import { probeLatency, type LatencyProbe } from '../audio/latency'
-import { patternById, PATTERNS } from '../audio/patterns'
+import { patternById } from '../audio/patterns'
 import { Sequencer } from '../audio/sequencer'
 import { Note } from 'tonal'
 import { bassDegreeName, resolveSpec, resolveSymbol, TONICS, type BassSpec, type ChordSpec, type ResolvedChord } from '../music/theory'
 import { pianoRowBass, voiceChord, type Voicing } from '../music/voicing'
-import { SYNC_MODES, type Binding, type Settings, type SyncMode } from '../state/storage'
+import { type Binding, type Settings, type SyncMode } from '../state/storage'
 import { BASS_KEYS, CONTROL_KEYS, DEGREE_KEYS, MODIFIER_CODES, OCTAVE_KEYS, QUALITY_KEYS, SLASH_KEY } from './keymap'
 import { buildSpec } from './spec'
 
@@ -66,7 +66,6 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
   /** One clock loops the current chord's pattern; `loopOwner` is the key whose release stops it */
   const seq = useRef<Sequencer | null>(null)
   const loopOwner = useRef<string | null>(null)
-  const taps = useRef<number[]>([])
 
   useEffect(() => {
     const down = new Set<string>()
@@ -101,6 +100,8 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
         voiceLeading: s.voiceLeading,
         prev: prevUpper.current,
         prevBass: prevBass.current,
+        voices: s.voices,
+        bassGap: s.bassGap,
       })
       // With solo on, a held bass key is already sounding at its fixed pitch; put the chord's bass on that same note
       let heldBassKey: Extract<BassSpec, { kind: 'degree' }> | undefined
@@ -135,7 +136,7 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
     const rowBassMidi = (bass: Extract<BassSpec, { kind: 'degree' }>) => {
       const s = settingsRef.current
       const pc = Note.chroma(bassDegreeName(s.tonic, bass.degree, bass.accidental)) ?? 0
-      return pianoRowBass(Note.chroma(s.tonic) ?? 0, pc, s.octave)
+      return pianoRowBass(Note.chroma(s.tonic) ?? 0, pc, s.octave - s.bassGap)
     }
 
     /** Sound a bass note on its own (bass keys with the solo toggle on) */
@@ -260,35 +261,6 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
         case CONTROL_KEYS.bass:
           setSettings((p) => ({ ...p, bass: !p.bass }))
           break
-        case CONTROL_KEYS.pattern: {
-          const dir = e.shiftKey ? -1 : 1
-          setSettings((p) => {
-            const i = PATTERNS.findIndex((x) => x.id === p.pattern)
-            return { ...p, pattern: PATTERNS[(i + dir + PATTERNS.length) % PATTERNS.length].id }
-          })
-          break
-        }
-        case CONTROL_KEYS.tempoDown:
-        case CONTROL_KEYS.tempoUp: {
-          const delta = (e.code === CONTROL_KEYS.tempoUp ? 1 : -1) * (e.shiftKey ? 1 : 5)
-          setSettings((p) => ({ ...p, bpm: clampBpm(p.bpm + delta) }))
-          break
-        }
-        case CONTROL_KEYS.tapTempo: {
-          const now = performance.now()
-          const recent = taps.current.filter((t) => now - t < 2000).slice(-4)
-          taps.current = [...recent, now]
-          if (recent.length) {
-            const avg = (now - recent[0]) / recent.length
-            setSettings((p) => ({ ...p, bpm: clampBpm(60000 / avg) }))
-          }
-          break
-        }
-        case CONTROL_KEYS.sync: {
-          const dir = e.shiftKey ? -1 : 1
-          setSettings((p) => ({ ...p, sync: SYNC_MODES[(SYNC_MODES.indexOf(p.sync) + dir + SYNC_MODES.length) % SYNC_MODES.length] }))
-          break
-        }
         case CONTROL_KEYS.panic:
           stopSeq()
           playing.current.clear()

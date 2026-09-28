@@ -20,7 +20,7 @@ export function RhythmPanel({ settings, setSettings, step }: Props) {
       <select
         value={current.id}
         onChange={(e) => setSettings((p) => ({ ...p, pattern: e.target.value }))}
-        title="rhythm pattern [R / Shift+R]"
+        title="rhythm pattern"
         className="bg-transparent text-sm text-cyan-200 outline-none [&>option]:bg-black"
       >
         {PATTERNS.map((p) => (
@@ -30,11 +30,10 @@ export function RhythmPanel({ settings, setSettings, step }: Props) {
           </option>
         ))}
       </select>
-      <span className="text-[10px] text-white/40">[R]</span>
 
       <span className="h-4 w-px bg-white/15" />
 
-      <label className="flex items-center gap-1 text-[10px] text-white/40" title="snap chord changes in a loop to this grid [C / Shift+C]">
+      <label className="flex items-center gap-1 text-[10px] text-white/40" title="snap chord changes in a loop to this grid">
         sync
         <select
           value={settings.sync}
@@ -47,19 +46,18 @@ export function RhythmPanel({ settings, setSettings, step }: Props) {
             </option>
           ))}
         </select>
-        [C]
       </label>
 
       <span className="h-4 w-px bg-white/15" />
 
-      <button onClick={() => bump(-5)} title="tempo −5 [V]" className="px-1 text-white/60 hover:text-white">
+      <button onClick={() => bump(-5)} title="tempo −5" className="px-1 text-white/60 hover:text-white">
         −
       </button>
-      <span className="font-display text-sm font-bold text-yellow-200" title="tap tempo [N]">
+      <span className="font-display text-sm font-bold text-yellow-200">
         {settings.bpm}
         <span className="ml-0.5 text-[9px] font-normal text-white/40">BPM</span>
       </span>
-      <button onClick={() => bump(5)} title="tempo +5 [B]" className="px-1 text-white/60 hover:text-white">
+      <button onClick={() => bump(5)} title="tempo +5" className="px-1 text-white/60 hover:text-white">
         +
       </button>
 

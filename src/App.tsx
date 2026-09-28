@@ -8,6 +8,7 @@ import { Piano } from './components/Piano'
 import { RhythmPanel } from './components/RhythmPanel'
 import { useChordKeyboard, type PlayedChord } from './input/useChordKeyboard'
 import { accidentalText, bassDegreeName, TONICS } from './music/theory'
+import { BASS_GAPS, VOICE_COUNTS, type VoiceCount } from './music/voicing'
 import { useSettings } from './state/storage'
 
 function Toggle({ on, label, hint, onClick }: { on: boolean; label: string; hint: string; onClick: () => void }) {
@@ -87,6 +88,34 @@ export default function App() {
         <span className="glass rounded-lg px-3 py-1.5 text-sm">
           octave <b className="font-display">{settings.octave}</b> <span className="text-[10px] opacity-60">[↑↓]</span>
         </span>
+        <label className="glass flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-white/60" title="notes per chord, not counting the bass">
+          notes
+          <select
+            value={String(settings.voices)}
+            onChange={(e) => setSettings((p) => ({ ...p, voices: e.target.value === 'auto' ? 'auto' : (Number(e.target.value) as VoiceCount) }))}
+            className="bg-transparent font-display font-bold text-cyan-200 outline-none [&>option]:bg-black"
+          >
+            {VOICE_COUNTS.map((v) => (
+              <option key={v} value={String(v)}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="glass flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-white/60" title="octaves between the bass note and the chord">
+          bass gap
+          <select
+            value={settings.bassGap}
+            onChange={(e) => setSettings((p) => ({ ...p, bassGap: Number(e.target.value) }))}
+            className="bg-transparent font-display font-bold text-cyan-200 outline-none [&>option]:bg-black"
+          >
+            {BASS_GAPS.map((g) => (
+              <option key={g} value={g}>
+                {g} oct
+              </option>
+            ))}
+          </select>
+        </label>
         <Toggle on={settings.voiceLeading} label="voice leading" hint="Tab" onClick={() => setSettings((p) => ({ ...p, voiceLeading: !p.voiceLeading }))} />
         <Toggle on={settings.bass} label="bass note" hint="Enter" onClick={() => setSettings((p) => ({ ...p, bass: !p.bass }))} />
         <Toggle

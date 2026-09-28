@@ -68,10 +68,6 @@ releasing the degree key releases the chord (Space = sustain pedal).
 | `Z` / `X` (held) | One-off octave down / up for chords and bass notes. Applied after voice leading and not fed back into it |
 | `/` + `1`–`7` | Slash bass layer: silently **latches that scale degree as a pedal** bass under following chords. `` ` `` flattens, `Shift` sharpens. Tap `/` alone (or `Esc`) to clear. `/` + a bass key latches that note too (also silent) |
 | `Space` | Sustain pedal |
-| `R` / `Shift+R` | Next / previous rhythm pattern |
-| `V` / `B` | Tempo −5 / +5 BPM (`Shift`: ±1) |
-| `N` | Tap tempo |
-| `C` / `Shift+C` | Cycle chord-change sync: off / 1/16 / 1/8 / 1/4 / bar |
 | `←` `→` | Tonic around the circle of fifths |
 | `↑` `↓` | Octave |
 | `Tab` / `Enter` | Toggle voice leading / bass note |
@@ -84,6 +80,12 @@ otherwise the bass scale degree in parens (IV/(♭7)) so it isn't confused with 
 The bass line is voice-led (nearest octave to the previous bass) when voice leading is on.
 Upper voice leading is confined to a window around the octave setting with a pull toward its
 center (`voicing.ts` constants), so long progressions don't drift up or down. Keep that invariant.
+Notes-per-chord (`settings.voices`, top-bar "notes" select): `auto` (every chord tone once) or 1–5 upper notes,
+bass not counted. Fewer drops the 5th first, then the root if the bass already plays it, then extensions from the
+top, then the 7th; with no bass the root is kept first. More adds octave doublings above the top (root, 5th, 3rd, 7th).
+Lives in `chooseTones` in `voicing.ts`; no key assigned yet.
+Bass gap (`settings.bassGap`, top-bar select): 1–3 octaves between the bass and the chord's octave (default 2 = C2
+under C4). Applies to chord basses (`placeBass`) and the piano-row bass keys (`pianoRowBass`), floored at C1.
 Symbols use explicit "add" for extensions (`G7addb9`) to match the user's mental model.
 
 ### Rhythm patterns
@@ -92,7 +94,7 @@ Every chord (including custom binds) plays through the current pattern (`setting
 - `hold` patterns (block, strums, harp roll) sound once and hold while the key is down, via ref-counted `noteOn`.
 - `loop` patterns are 16th-step grids built from the voicing (`build(v)`), looped by one persistent
   `Sequencer` clock at `settings.bpm`. Steps are absolute; a pattern plays `step % pattern.steps`.
-- Sync (`settings.sync`, `C` key): a chord change during a loop (or within a bar of it stopping) snaps to
+- Sync (`settings.sync`, top-bar select): a chord change during a loop (or within a bar of it stopping) snaps to
   the NEXT grid point (1/16, 1/8, 1/4, bar) and keeps the bar position; the old chord keeps looping until then.
   Only a press just after a grid point (≤25% of the grid, max 80 ms) counts as late for it → come in on the
   next free 16th playing the missed point's hit. Never round to "nearest": mid-beat presses would fire instantly.
@@ -104,7 +106,7 @@ Every chord (including custom binds) plays through the current pattern (`setting
 - 30 ms lookahead so a chord change can't be followed by already-queued hits of the old chord.
 - Pattern hits release via a guarded timer (`engine.releaseLater`), not a scheduled release, because
   PolySynth resolves releases late and would cut off a newer attack of the same note.
-- To add a pattern: append to `PATTERNS` in `audio/patterns.ts`; the UI and `R` cycling pick it up.
+- To add a pattern: append to `PATTERNS` in `audio/patterns.ts`; the UI picks it up.
 
 ### Custom bindings
 
@@ -132,7 +134,7 @@ Ctrl/Meta combos are never captured so browser shortcuts keep working.
 
 - Root-note modifiers beyond ♭root (♯root?)
 - Chromatic bass spelling is theory-strict (♭2 of Eb = Fb). Maybe prefer simpler enharmonics.
-- Bass keys ate most left-hand letters; free for custom binds: only `.` (plus any Shift/Alt combo). Running low; consider a layer/F-keys for future controls
+- Free for custom binds: `R` `C` `V` `B` `N` `.` (plus any Shift/Alt combo).
 - Should the pedal persist across reloads? (currently in-memory only)
 - Shift on vii°: currently → minor. Maybe major VII is more useful.
 - Whether modifiers pressed *while* a chord is held should re-voice it live.

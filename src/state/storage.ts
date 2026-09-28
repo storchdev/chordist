@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { InstrumentName } from '../audio/engine'
 import type { ChordSpec, Tonic } from '../music/theory'
+import type { VoiceCount } from '../music/voicing'
 
 export type BindingTarget = { kind: 'relative'; spec: ChordSpec } | { kind: 'absolute'; symbol: string }
 
@@ -21,6 +22,10 @@ export interface Settings {
   instrument: InstrumentName
   volume: number
   voiceLeading: boolean
+  /** Upper notes per chord (bass not counted) */
+  voices: VoiceCount
+  /** Octaves between the bass note and the chord */
+  bassGap: number
   bass: boolean
   /** Whether the chromatic bass keys make a sound on their own (otherwise they only set a chord's bass) */
   bassKeysSound: boolean
@@ -38,6 +43,8 @@ export const DEFAULT_SETTINGS: Settings = {
   instrument: 'piano',
   volume: -6,
   voiceLeading: true,
+  voices: 'auto',
+  bassGap: 2,
   bass: true,
   bassKeysSound: false,
   pattern: 'block',

@@ -76,14 +76,6 @@ export const CONTROL_KEYS = {
   voiceLeading: 'Tab',
   bass: 'Enter',
   bassKeysSound: 'KeyQ',
-  /** R = next pattern, Shift+R = previous */
-  pattern: 'KeyR',
-  /** V / B = tempo −5 / +5 (Shift: ±1) */
-  tempoDown: 'KeyV',
-  tempoUp: 'KeyB',
-  tapTempo: 'KeyN',
-  /** C = cycle chord-change sync (off / 1/16 / 1/8 / 1/4 / bar), Shift+C backwards */
-  sync: 'KeyC',
   panic: 'Escape',
 } as const
 
