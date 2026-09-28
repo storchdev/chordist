@@ -132,6 +132,7 @@ export function KeyMap({
       ))}
       <div className="mt-2 flex flex-wrap justify-center gap-4 text-xs text-white/50">
         <span>← → tonic (circle of 5ths)</span>
+        <span>Alt + A–J = jump to key (A = C … J = B, or the shown note with relative modulation)</span>
         <span>↑ ↓ octave</span>
         <span className="text-orange-300">A–J piano row = one-off bass (hold under a chord)</span>
         <span>hold Z / X = one-off octave down / up</span>

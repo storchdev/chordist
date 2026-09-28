@@ -35,6 +35,8 @@ export interface Settings {
   bass: boolean
   /** Whether the chromatic bass keys make a sound on their own (otherwise they only set a chord's bass) */
   bassKeysSound: boolean
+  /** Alt + piano row: jump to the note shown on the key (relative to the tonic) instead of a fixed key (A = C …) */
+  relativeModulation: boolean
   /** Rhythm/strum pattern id (see audio/patterns.ts) */
   pattern: string
   bpm: number
@@ -55,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bassGap: 2,
   bass: true,
   bassKeysSound: false,
+  relativeModulation: false,
   pattern: 'block',
   bpm: 100,
   sync: '1/8',

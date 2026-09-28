@@ -133,6 +133,12 @@ export default function App() {
           hint="Q"
           onClick={() => setSettings((p) => ({ ...p, bassKeysSound: !p.bassKeysSound }))}
         />
+        <Toggle
+          on={settings.relativeModulation}
+          label="relative modulation"
+          hint="Alt+A–J"
+          onClick={() => setSettings((p) => ({ ...p, relativeModulation: !p.relativeModulation }))}
+        />
         <span
           className={`rounded-lg px-3 py-1.5 font-display text-sm transition ${sustain ? 'bg-violet-500 text-white shadow-[0_0_20px_#b14bff]' : 'glass text-white/40'}`}
         >

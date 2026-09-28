@@ -8,7 +8,7 @@ import { Note } from 'tonal'
 import { bassDegreeName, resolveSpec, resolveSymbol, TONICS, transposeSymbol, type BassSpec, type ChordSpec, type ChordType, type ResolvedChord, type Tonic } from '../music/theory'
 import { pianoRowBass, voiceChord, type Voicing } from '../music/voicing'
 import { type Binding, type Settings, type SyncMode } from '../state/storage'
-import { BASS_KEYS, CONTROL_KEYS, DEGREE_KEYS, MODIFIER_CODES, OCTAVE_KEYS, QUALITY_KEYS, SLASH_KEY } from './keymap'
+import { BASS_KEYS, CONTROL_KEYS, DEGREE_KEYS, MODIFIER_CODES, OCTAVE_KEYS, QUALITY_KEYS, SLASH_KEY, TONIC_KEYS } from './keymap'
 import { buildSpec } from './spec'
 
 export interface PlayedChord {
@@ -197,6 +197,16 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
         types.delete(e.code) // re-insert so it counts as the most recent
         types.set(e.code, binding.target.chordType)
         syncType()
+        return
+      }
+
+      if (e.altKey && bassKey && !binding) {
+        setSettings((p) => {
+          if (!p.relativeModulation) return { ...p, tonic: TONIC_KEYS[e.code] }
+          // The note the bass key shows in the current key, respelled as one of the selectable tonics
+          const chroma = Note.chroma(bassDegreeName(p.tonic, bassKey.degree, bassKey.accidental))
+          return { ...p, tonic: TONICS.find((t) => Note.chroma(t) === chroma) ?? p.tonic }
+        })
         return
       }
 

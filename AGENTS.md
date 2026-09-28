@@ -71,6 +71,7 @@ releasing the degree key releases the chord (Space = sustain pedal).
 | `/` + `1`–`7` | Slash bass layer: silently **latches that scale degree as a pedal** bass under following chords. `` ` `` flattens, `Shift` sharpens. Tap `/` alone (or `Esc`) to clear. `/` + a bass key latches that note too (also silent) |
 | `Space` | Sustain pedal |
 | `←` `→` | Tonic around the circle of fifths |
+| `Alt` + `A W S E D F T G Y H U J` | Jump straight to a key. Default: fixed pitches, `A` = C, `W` = Db … `J` = B (`TONIC_KEYS`). With "relative modulation" on (`settings.relativeModulation`, persisted, off by default): the note that bass key shows in the current key (Alt+`G` in C → G, then Alt+`G` again → D). Custom Alt binds on these keys still win |
 | `↑` `↓` | Octave |
 | `Tab` / `Enter` | Toggle voice leading / bass note |
 | `Esc` | All notes off |

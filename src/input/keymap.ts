@@ -1,4 +1,4 @@
-import type { BassSpec, Degree, Extension, Seventh } from '../music/theory'
+import type { BassSpec, Degree, Extension, Seventh, Tonic } from '../music/theory'
 
 /**
  * Physical key layout, keyed by KeyboardEvent.code so it works regardless of
@@ -53,6 +53,15 @@ export const BASS_KEYS: Record<string, DegreeBass> = {
   KeyT: bass(4, 1), KeyG: bass(5), KeyY: bass(6, -1), KeyH: bass(6), KeyU: bass(7, -1), KeyJ: bass(7),
 }
 
+/**
+ * Alt + piano row jumps straight to a key: these fixed keys (Alt+A = C, Alt+W = Db … Alt+J = B), or with
+ * the "relative modulation" setting, the note the bass key shows in the current key.
+ */
+export const TONIC_KEYS: Record<string, Tonic> = {
+  KeyA: 'C', KeyW: 'Db', KeyS: 'D', KeyE: 'Eb', KeyD: 'E', KeyF: 'F',
+  KeyT: 'F#', KeyG: 'G', KeyY: 'Ab', KeyH: 'A', KeyU: 'Bb', KeyJ: 'B',
+}
+
 /** One-off octave shift while held; applies to chords and bass notes alike */
 export const OCTAVE_KEYS: Record<string, -1 | 1> = { KeyZ: -1, KeyX: 1 }
 
@@ -103,7 +112,7 @@ export const UNBINDABLE = new Set([
 
 /** True if a binding on this combo shadows a built-in key */
 export function shadowsBuiltin(code: string, shift: boolean, alt: boolean): boolean {
-  if (alt) return false
+  if (alt) return TONIC_KEYS[code] !== undefined
   if (DEGREE_KEYS[code] !== undefined) return true // shift+digit is also built-in
   return !shift && RESERVED.has(code)
 }
