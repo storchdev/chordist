@@ -60,6 +60,14 @@ export default function App() {
             </button>
           ))}
         </div>
+        <a
+          href="https://github.com/storchdev/chordist"
+          target="_blank"
+          rel="noreferrer"
+          className="glass ml-auto rounded-lg px-3 py-1.5 font-display text-sm text-white/60 transition hover:text-white"
+        >
+          github
+        </a>
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
