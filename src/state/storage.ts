@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { InstrumentName } from '../audio/engine'
 import type { ChordSpec, Tonic } from '../music/theory'
+import { DEFAULT_QUALITY_MAP, type QualityMap } from '../music/qualities'
 import type { VoiceCount } from '../music/voicing'
 
 export type BindingTarget = { kind: 'relative'; spec: ChordSpec } | { kind: 'absolute'; symbol: string }
@@ -35,6 +36,8 @@ export interface Settings {
   /** Snap chord changes in a running loop to this grid */
   sync: SyncMode
   bindings: Binding[]
+  /** Per-degree chord qualities for plain / Shift / ♭root / ♭root+Shift */
+  qualities: QualityMap
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -51,6 +54,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bpm: 100,
   sync: '1/8',
   bindings: [],
+  qualities: DEFAULT_QUALITY_MAP,
 }
 
 const KEY = 'chordist:settings:v1'
@@ -59,7 +63,9 @@ function load(): Settings {
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return DEFAULT_SETTINGS
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
+    const saved = JSON.parse(raw)
+    // Nested objects merge too, so settings saved by an older version pick up new fields
+    return { ...DEFAULT_SETTINGS, ...saved, qualities: { ...DEFAULT_QUALITY_MAP, ...saved.qualities } }
   } catch {
     return DEFAULT_SETTINGS
   }

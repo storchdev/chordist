@@ -217,7 +217,7 @@ export function useChordKeyboard({ settings, setSettings, suspended }: Options) 
         // Resolve now so the chord reflects the modifiers held at press time
         const spec = binding
           ? binding.target.kind === 'relative' ? binding.target.spec : null
-          : buildSpec(degree!, heldRef.current, e.shiftKey, pedalRef.current)
+          : buildSpec(degree!, heldRef.current, e.shiftKey, pedalRef.current, s.qualities)
         const chord = spec ? resolveSpec(spec, s.tonic) : resolveSymbol((binding!.target as { symbol: string }).symbol)
         down.add(e.code)
         const probe = probeLatency(e)

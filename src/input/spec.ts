@@ -1,21 +1,25 @@
-import { DIATONIC_QUALITY, type BassSpec, type ChordSpec, type Degree, type Extension, type Quality, type Seventh } from '../music/theory'
+import { qualityFor, type QualityMap } from '../music/qualities'
+import { type BassSpec, type ChordSpec, type Degree, type Extension, type Quality, type Seventh } from '../music/theory'
 import { BASS_KEYS, EXTENSION_KEYS, INVERSION_KEYS, QUALITY_KEYS, SEVENTH_KEYS } from './keymap'
 
 /**
  * Turn a degree key + currently held modifier keys into a chord spec.
  *
  * Precedence, lowest to highest:
- *   diatonic quality (♭root → major) → Shift flip → `]` forces major →
+ *   quality table (plain / Shift / ♭root / ♭root+Shift, user-editable) → `]` forces major →
  *   sus (`;` `'`) → dim/aug (`-` `=`) → `\` forces dim
  *
  * Bass (low → high): latched `/` pedal → inversion key (8/9/0) → held one-off bass key (Q…U).
  */
-export function buildSpec(degree: Degree, held: ReadonlySet<string>, shift: boolean, pedal: BassSpec | null): ChordSpec {
+export function buildSpec(
+  degree: Degree,
+  held: ReadonlySet<string>,
+  shift: boolean,
+  pedal: BassSpec | null,
+  qualities: QualityMap,
+): ChordSpec {
   const flatRoot = held.has(QUALITY_KEYS.flatRoot)
-  let quality: Quality = flatRoot ? 'maj' : DIATONIC_QUALITY[degree]
-
-  // maj ↔ min. The diatonic vii° becomes a plain minor vii (a major VII needs a custom bind for now)
-  if (shift) quality = quality === 'min' ? 'maj' : 'min'
+  let quality: Quality = qualityFor(qualities, degree, flatRoot, shift)
 
   let seventhMode: Seventh | 'natural' | null = null
   for (const [code, mode] of Object.entries(SEVENTH_KEYS)) {

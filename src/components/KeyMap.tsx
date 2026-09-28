@@ -1,5 +1,6 @@
 import { BASS_KEYS, prettyCode } from '../input/keymap'
-import { bassDegreeName, type Tonic } from '../music/theory'
+import type { QualityMap } from '../music/qualities'
+import { bassDegreeName, resolveSpec, type Degree, type Tonic } from '../music/theory'
 import type { Binding } from '../state/storage'
 
 type Kind = 'degree' | 'quality' | 'seventh' | 'ext' | 'bass' | 'control' | 'none'
@@ -68,6 +69,12 @@ const KIND_GLOW: Record<Kind, string> = {
   none: '#ffffff',
 }
 
+/** Roman numeral a number key plays with no modifiers, following the quality table */
+function degreeRoman(tonic: Tonic, degree: Degree, qualities: QualityMap) {
+  const spec = { degree, flatRoot: false, quality: qualities.plain[degree], seventh: null, extensions: [] }
+  return resolveSpec(spec, tonic).roman ?? String(degree)
+}
+
 export function KeyMap({
   tonic,
   held,
@@ -75,6 +82,7 @@ export function KeyMap({
   sustain,
   bindings,
   toggles,
+  qualities,
 }: {
   tonic: Tonic
   held: ReadonlySet<string>
@@ -83,6 +91,7 @@ export function KeyMap({
   bindings: Binding[]
   /** Toggle keys (by code) and whether they're currently on */
   toggles: Record<string, boolean>
+  qualities: QualityMap
 }) {
   const bound = new Set(bindings.map((b) => b.code))
   const isOn = (code: string) =>
@@ -94,7 +103,11 @@ export function KeyMap({
         <div key={i} className="flex gap-1.5">
           {row.map(({ code, w = 1 }) => {
             const b = BASS_KEYS[code]
-            const info = INFO[code] ?? (b && { label: bassDegreeName(tonic, b.degree, b.accidental), kind: 'bass' as const })
+            const degree = /^Digit[1-7]$/.test(code) ? (Number(code.slice(5)) as Degree) : null
+            const info =
+              degree !== null
+                ? { label: degreeRoman(tonic, degree, qualities), kind: 'degree' as const }
+                : (INFO[code] ?? (b && { label: bassDegreeName(tonic, b.degree, b.accidental), kind: 'bass' as const }))
             const kind: Kind = info?.kind ?? 'none'
             const on = isOn(code)
             const toggle = toggles[code]

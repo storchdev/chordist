@@ -5,6 +5,7 @@ import { ChordDisplay } from './components/ChordDisplay'
 import { DiatonicStrip } from './components/DiatonicStrip'
 import { KeyMap } from './components/KeyMap'
 import { Piano } from './components/Piano'
+import { QualityPanel } from './components/QualityPanel'
 import { RhythmPanel } from './components/RhythmPanel'
 import { useChordKeyboard, type PlayedChord } from './input/useChordKeyboard'
 import { accidentalText, bassDegreeName, TONICS } from './music/theory'
@@ -120,7 +121,7 @@ export default function App() {
         <Toggle on={settings.bass} label="bass note" hint="Enter" onClick={() => setSettings((p) => ({ ...p, bass: !p.bass }))} />
         <Toggle
           on={settings.bassKeysSound}
-          label="bass keys sound"
+          label="bass key solo"
           hint="Q"
           onClick={() => setSettings((p) => ({ ...p, bassKeysSound: !p.bassKeysSound }))}
         />
@@ -149,7 +150,7 @@ export default function App() {
       </div>
 
       <ChordDisplay last={last} tonic={settings.tonic} />
-      <DiatonicStrip tonic={settings.tonic} held={held} shift={shift} pedal={pedal} last={last} />
+      <DiatonicStrip tonic={settings.tonic} held={held} shift={shift} pedal={pedal} last={last} qualities={settings.qualities} />
       <Piano />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
@@ -161,7 +162,9 @@ export default function App() {
             shift={shift}
             sustain={sustain}
             bindings={settings.bindings}
+            qualities={settings.qualities}
           />
+          <QualityPanel settings={settings} setSettings={setSettings} />
           <div className="glass rounded-2xl p-4">
             <h2 className="mb-2 font-display text-sm tracking-widest text-white/50">HISTORY</h2>
             <div className="flex flex-wrap gap-2">

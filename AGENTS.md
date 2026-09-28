@@ -33,6 +33,7 @@ flashy/vibe-coded; that's intended.
 src/
   music/theory.ts     ChordSpec → ResolvedChord (symbol, roman numeral, spelling, semitones). Tonal lives here.
   music/voicing.ts    ResolvedChord → MIDI notes (bass + upper voices, optional voice leading)
+  music/qualities.ts  User-editable quality table (plain / Shift / ♭root / ♭root+Shift per degree)
   input/keymap.ts     Physical key layout (KeyboardEvent.code). Single source of truth for key assignments.
   input/spec.ts       held modifier keys + degree + shift → ChordSpec (precedence rules live here)
   input/useChordKeyboard.ts  global keydown/keyup handling, playing/releasing, controls
@@ -40,7 +41,7 @@ src/
   audio/patterns.ts   Rhythm/strum pattern definitions (hold strums + looping 16th-step grids)
   audio/sequencer.ts  Lookahead scheduler that loops one pattern over a voicing
   state/storage.ts    Settings + custom bindings, persisted to localStorage
-  components/         Pure-ish UI (display, piano, key map, bindings panel)
+  components/         Pure-ish UI (display, piano, key map, bindings panel, quality table)
 ```
 
 Data flow: key event → `buildSpec` → `resolveSpec(spec, tonic)` → `voiceChord` → `engine.noteOn`.
@@ -55,8 +56,8 @@ releasing the degree key releases the chord (Space = sustain pedal).
 | Key | Meaning |
 | --- | --- |
 | `1`–`7` (and numpad) | Diatonic triad on that degree: I ii iii IV V vi vii° |
-| `Shift` + degree | Flip major ↔ minor. vii° → vii (minor) |
-| `` ` `` | ♭ root (♭II, ♭III, ♭VI, ♭VII…); defaults to major |
+| `Shift` + degree | Default: flip major ↔ minor (dim/aug/sus → minor). Editable per degree in the quality table |
+| `` ` `` | ♭ root (♭II, ♭III, ♭VI, ♭VII…); defaults to major, editable per degree (with and without Shift) |
 | `-` / `=` | Diminished / augmented triad |
 | `;` / `'` | sus2 / sus4 |
 | `[` | "Natural" 7th: maj/aug → maj7, min/dim/sus → ♭7 (so ii → m7, vii° → m7♭5) |
@@ -64,8 +65,8 @@ releasing the degree key releases the chord (Space = sustain pedal).
 | `\` | Fully diminished 7th (forces dim triad + °7) |
 | `I O P` / `K L` / `M ,` | Add ♭9 9 ♯9 / 11 ♯11 / ♭13 13 |
 | `8` / `9` / `0` | Inversion: 3rd / 5th / 7th in the bass (held). `0` does nothing without a 7th |
-| `A W S E D F T G Y H U J` | One-off bass note, chromatic from the tonic, piano-shaped (`ASDFGHJ` white, `WETYU` black). While held, any chord played uses it as its bass. Silent on its own unless the bass-keys-sound toggle is on. When sounding they use fixed pitches (tonic in the bass octave, climbing to J; no voice leading, no mid-row wrap), and a chord played over one takes that same bass pitch |
-| `Q` | Toggle: bass keys sound on their own (persisted, off by default) |
+| `A W S E D F T G Y H U J` | One-off bass note, chromatic from the tonic, piano-shaped (`ASDFGHJ` white, `WETYU` black). While held, any chord played uses it as its bass. Silent on its own unless the bass key solo toggle is on. When sounding they use fixed pitches (tonic in the bass octave, climbing to J; no voice leading, no mid-row wrap), and a chord played over one takes that same bass pitch |
+| `Q` | Toggle "bass key solo": bass keys sound on their own (persisted, off by default; setting key `bassKeysSound`) |
 | `Z` / `X` (held) | One-off octave down / up for chords and bass notes. Applied after voice leading and not fed back into it |
 | `/` + `1`–`7` | Slash bass layer: silently **latches that scale degree as a pedal** bass under following chords. `` ` `` flattens, `Shift` sharpens. Tap `/` alone (or `Esc`) to clear. `/` + a bass key latches that note too (also silent) |
 | `Space` | Sustain pedal |
@@ -74,7 +75,11 @@ releasing the degree key releases the chord (Space = sustain pedal).
 | `Tab` / `Enter` | Toggle voice leading / bass note |
 | `Esc` | All notes off |
 
-Quality precedence (low → high): diatonic → Shift → `]` → sus → dim/aug → `\`.
+Quality precedence (low → high): quality table → `]` → sus → dim/aug → `\`.
+The quality table (`settings.qualities`, `QualityPanel`) sets the starting quality for each degree in four rows:
+plain, Shift, ♭root, ♭root+Shift. With "use default shift modifiers" on (default), the Shift rows are derived from
+the plain/♭ rows via `defaultShift` and locked in the UI; turning it off copies the derived rows in so nothing
+changes until edited. Old saved settings merge in `DEFAULT_QUALITY_MAP`. KeyMap degree labels follow the plain row.
 Bass precedence (low → high): latched pedal → inversion key → held one-off bass key (most recent wins). Any slash bass sounds even with the bass toggle off.
 Slash chords show figured bass in the roman numeral when the bass is a chord tone (I⁶, V⁴₂),
 otherwise the bass scale degree in parens (IV/(♭7)) so it isn't confused with secondary functions.

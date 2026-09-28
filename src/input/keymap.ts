@@ -46,7 +46,7 @@ const bass = (degree: Degree, accidental: -1 | 0 | 1 = 0): DegreeBass => ({ kind
  * One-off bass notes, chromatic from the tonic, laid out like a piano
  * (A S D F G H J = white keys, W E T Y U = black keys; in C: A = C, W = Db, S = D …).
  * Held, they set the bass of any chord played meanwhile. They only sound on their own
- * when the "bass keys sound" toggle is on. With `/` held they latch as the pedal instead.
+ * when the "bass key solo" toggle is on. With `/` held they latch as the pedal instead.
  */
 export const BASS_KEYS: Record<string, DegreeBass> = {
   KeyA: bass(1), KeyW: bass(2, -1), KeyS: bass(2), KeyE: bass(3, -1), KeyD: bass(3), KeyF: bass(4),
