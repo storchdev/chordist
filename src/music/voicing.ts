@@ -113,18 +113,32 @@ function distance(a: number[], b: number[]): number {
   return Math.abs(avg(a) - avg(b)) * a.length
 }
 
+/** Drop the bass's pitch class from the upper tones (unless that would leave nothing) */
+function withoutBass(chord: ResolvedChord, bassPc: number): ResolvedChord {
+  const keep = (s: number) => (chord.rootPc + s) % 12 !== bassPc
+  const core = chord.core.filter(keep)
+  const extensions = chord.extensions.filter(keep)
+  return core.length + extensions.length ? { ...chord, core, extensions } : chord
+}
+
 export function voiceChord(chord: ResolvedChord, opts: VoicingOptions): Voicing {
-  const base = chord.rootPc + 12 * (opts.octave + 1)
-  const hasBass = opts.bass || chord.bassPc !== null
+  const hasBass = opts.bass || (chord.bassPc !== null && !chord.bassOptional)
+  // Interval-list types play exactly what was written: the first interval is the bass, not doubled above
+  if (hasBass && chord.soleBass) chord = withoutBass(chord, chord.bassPc ?? chord.rootPc)
   const tones = chooseTones(chord, opts.voices, hasBass && (chord.bassPc ?? chord.rootPc) === chord.rootPc)
   // With every core tone dropped (e.g. 1 voice on a chord with extensions), the kept extension stands in as the core
   const coreSemis = tones.core.length ? tones.core : tones.extensions.map((s) => s % 12)
   const extSemis = tones.core.length ? tones.extensions : []
   const corePcs = coreSemis.map((s) => (chord.rootPc + s) % 12)
 
-  let core: number[]
+  // An explicit slash bass always sounds, even with the bass toggle off (a chord type's own bass doesn't)
+  const bass = hasBass ? placeBass(chord.bassPc ?? chord.rootPc, opts.octave - opts.bassGap, opts.voiceLeading, opts.prevBass) : null
+  const home = 12 * (opts.octave + 1)
+  // Close position from the lowest played tone (not the root: a rootless type like "b7 9 b12" would float up to a 7th higher).
+  // A chord type's own bass stands in for the root, so its upper voices start within the octave below bass + gap
+  // (otherwise the gap would depend on where the bass falls relative to the octave's C)
+  let core = closeVoicing(corePcs, bass !== null && chord.soleBass ? bass + 12 * opts.bassGap - 11 : home)
   if (opts.voiceLeading && opts.prev && opts.prev.length) {
-    const home = 12 * (opts.octave + 1)
     const center = home + CENTER_OFFSET
     const prevCore = opts.prev.slice(0, corePcs.length)
     const avg = (xs: number[]) => xs.reduce((sum, x) => sum + x, 0) / xs.length
@@ -141,9 +155,7 @@ export function voiceChord(chord: ResolvedChord, opts: VoicingOptions): Voicing 
         }
       }
     }
-    core = best ?? coreSemis.map((s) => base + s)
-  } else {
-    core = coreSemis.map((s) => base + s)
+    core = best ?? core
   }
 
   // Extensions stack above the top of the core voicing
@@ -164,8 +176,7 @@ export function voiceChord(chord: ResolvedChord, opts: VoicingOptions): Voicing 
   }
 
   return {
-    // An explicit slash bass always sounds, even with the bass toggle off
-    bass: hasBass ? placeBass(chord.bassPc ?? chord.rootPc, opts.octave - opts.bassGap, opts.voiceLeading, opts.prevBass) : null,
+    bass,
     upper: upper.sort((a, b) => a - b),
   }
 }

@@ -129,7 +129,7 @@ built-ins, so they can shadow them (UI warns). Targets:
   keys play that shape on the degree's root (`spec.chordType` overrides quality + 7th; ♭root, inversions, slash bass,
   extensions and bass keys still apply). Parsed by `parseChordType`: one token = symbol, root ignored (`Cm7b5`, `m7b5`,
   `ø7`; aliases in `TYPE_ALIASES`, e.g. `dim7b5` → `m7b5`); 2+ tokens = intervals as scale degrees (`1 b3 b5 b7`),
-  semitones incl. 0 (`0 3 6 10`) or tonal names (`1P 3m 5d 7m`). A type bind made without Shift also matches with
+  semitones incl. 0 (`0 3 6 10`) or tonal names (`1P 3m 5d 7m`). The first interval as written is the chord's bass (`b3 5 b7` → ♭3 in the bass, `5 1 3` → second inversion); like the root it only sounds with the bass toggle on, and explicit slash/inversion/bass keys override it. While that bass sounds it isn't repeated in the upper voices (`soleBass`); built-in chords and symbol types still double the root. A type bind made without Shift also matches with
   Shift held. Several held → most recent wins. Example: R = m7b5 → hold R + 1–7 for half-diminished on any degree.
 Held modifiers and the pedal do not affect custom bindings; they play exactly what's saved
 (a relative binding saves the bass too, so slash chords can be bound).

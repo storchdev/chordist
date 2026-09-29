@@ -28,6 +28,8 @@ export interface ChordType {
   name: string
   /** Tonal interval names from the root, ascending, e.g. ["1P", "3m", "5d", "7m"] */
   intervals: string[]
+  /** The chord's own bass: the first interval as written ("5 1 3" → 5P). Missing → the lowest interval */
+  bass?: string
 }
 
 export interface ChordSpec {
@@ -56,6 +58,10 @@ export interface ResolvedChord {
   /** Slash bass, null when the bass is just the root */
   bassName: string | null
   bassPc: number | null
+  /** The slash bass comes from the chord type itself, so like the root it only sounds with the bass toggle on */
+  bassOptional?: boolean
+  /** Interval-list type on its own bass: while the bass sounds, the upper voices don't repeat it */
+  soleBass?: boolean
 }
 
 export const DIATONIC_QUALITY: Record<Degree, Quality> = {
@@ -178,6 +184,9 @@ export function resolveSpec(spec: ChordSpec, tonic: Tonic): ResolvedChord {
   let bassName: string | null = null
   if (spec.bass?.kind === 'chordTone') bassName = spec.bass.index < coreIvls.length ? noteNames[spec.bass.index] : null
   else if (spec.bass?.kind === 'degree') bassName = bassDegreeName(tonic, spec.bass.degree, spec.bass.accidental)
+  // Without an explicit bass, a chord type's first interval is its bass (the root for "1 3 5", the 3rd for "3 5 7")
+  const typeBass = !spec.bass && type ? (type.bass ?? type.intervals[0]) : undefined
+  if (typeBass && typeBass !== '1P') bassName = noteNames[[...coreIvls, ...extIvls].indexOf(typeBass)] ?? Note.transpose(rootName, typeBass)
   const bassPc = bassName === null ? null : (Note.chroma(bassName) ?? 0)
   const slash = bassPc !== null && bassPc !== rootPc
 
@@ -210,6 +219,8 @@ export function resolveSpec(spec: ChordSpec, tonic: Tonic): ResolvedChord {
     noteNames,
     bassName: slash ? bassName : null,
     bassPc: slash ? bassPc : null,
+    bassOptional: slash && !spec.bass,
+    soleBass: !!type?.bass && !spec.bass,
   }
 }
 
@@ -280,7 +291,7 @@ export function parseChordType(text: string): ChordType | null {
     else ivls = tokens.map((t) => (Interval.get(t).empty ? null : Interval.get(t).name))
     if (ivls.some((i) => i === null)) return null
     const sorted = [...new Set(ivls as string[])].sort((a, b) => (Interval.semitones(a) ?? 0) - (Interval.semitones(b) ?? 0))
-    return { name: typeName(sorted) ?? `(${tokens.join(' ')})`, intervals: sorted }
+    return { name: typeName(sorted) ?? `(${tokens.join(' ')})`, intervals: sorted, bass: ivls[0]! }
   }
   let symbol = tokens[0]
   for (const [re, to] of TYPE_ALIASES) symbol = symbol.replace(re, to)
