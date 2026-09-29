@@ -6,6 +6,7 @@ import { DiatonicStrip } from './components/DiatonicStrip'
 import { KeyMap } from './components/KeyMap'
 import { Piano } from './components/Piano'
 import { QualityPanel } from './components/QualityPanel'
+import { RecorderPanel } from './components/RecorderPanel'
 import { RhythmPanel } from './components/RhythmPanel'
 import { useChordKeyboard, type PlayedChord } from './input/useChordKeyboard'
 import { accidentalText, bassDegreeName, TONICS } from './music/theory'
@@ -167,8 +168,8 @@ export default function App() {
       <DiatonicStrip tonic={settings.tonic} held={held} shift={shift} pedal={pedal} last={last} qualities={settings.qualities} chordType={heldType} />
       <Piano />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-        <div className="flex flex-col gap-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="flex min-w-0 flex-col gap-6">
           <KeyMap
             tonic={settings.tonic}
             toggles={{ KeyQ: settings.bassKeysSound, Tab: settings.voiceLeading, Enter: settings.bass, Slash: pedal !== null }}
@@ -189,6 +190,7 @@ export default function App() {
               ))}
             </div>
           </div>
+          <RecorderPanel last={last} tonic={settings.tonic} />
         </div>
         <BindingsPanel settings={settings} setSettings={setSettings} setCapturing={setCapturing} />
       </div>

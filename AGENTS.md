@@ -13,7 +13,7 @@ flashy/vibe-coded; that's intended.
   the first key press only resumes the context. While an instrument's samples load, the neon synth plays instead. Sample file lists in `engine.ts` must match the repo exactly
   or the Sampler never finishes loading.
 - `tonal` for note spelling, intervals, key scales, and parsing chord symbols
-- Persistence: `localStorage` only (`chordist:settings:v1`). No backend.
+- Persistence: `localStorage` only (`chordist:settings:v1`, recordings in `chordist:recordings:v1`). No backend.
 
 ## Commands
 
@@ -41,6 +41,7 @@ src/
   audio/patterns.ts   Rhythm/strum pattern definitions (hold strums + looping 16th-step grids)
   audio/sequencer.ts  Lookahead scheduler that loops one pattern over a voicing
   state/storage.ts    Settings + custom bindings, persisted to localStorage
+  state/recordings.ts Recorded takes (chord symbol, roman, key, notes, time) + plain-text export
   components/         Pure-ish UI (display, piano, key map, bindings panel, quality table)
 ```
 
@@ -116,6 +117,13 @@ Every chord (including custom binds) plays through the current pattern (`setting
   PolySynth resolves releases late and would cut off a newer attack of the same note.
 - To add a pattern: append to `PATTERNS` in `audio/patterns.ts`; the UI picks it up.
 
+### Recordings
+
+`RecorderPanel` records every chord hit (`last.hit` changes) while armed: time since start, symbol, roman numeral,
+key, and sounding notes. Stopping saves the take (empty takes are dropped). Takes are renamable, deletable and export
+as text (`recordingText`: header, timed lines with key changes, then a `progression: C | Am | …` line) via clipboard
+or a `.txt` download. No key assigned yet; no playback yet.
+
 ### Custom bindings
 
 Any key + optional Shift/Alt can be bound to a chord. Custom bindings are checked **before**
@@ -158,4 +166,4 @@ Ctrl/Meta combos are never captured so browser shortcuts keep working.
 - More extension ergonomics (6/add2/add4 vs 9/11/13, "9 chord" shorthand instead of 7add9).
 - Nicer spelling for ♭ degrees in flat keys (♭VI in Db currently spells as A).
 - Rhythm: swing; per-pattern accents/humanize; user-defined patterns.
-- MIDI output, recording/looping, chord progression presets.
+- MIDI output, looping/playback of recordings, chord progression presets.
