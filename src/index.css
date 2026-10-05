@@ -18,7 +18,9 @@ body {
   overflow-x: hidden;
 }
 
-/* Slowly drifting neon blobs behind everything */
+/* Slowly drifting neon blobs behind everything.
+   Soft edges come from a radial gradient, not filter: blur(), and only transform animates,
+   so the blobs are rasterized once and moved on the compositor. */
 .bg-blobs::before,
 .bg-blobs::after {
   content: '';
@@ -26,18 +28,20 @@ body {
   width: 60vmax;
   height: 60vmax;
   border-radius: 50%;
-  filter: blur(120px);
+  background: radial-gradient(circle closest-side, var(--blob) 35%, transparent);
   opacity: 0.35;
   z-index: -1;
+  pointer-events: none;
+  will-change: transform;
   animation: drift 22s ease-in-out infinite alternate;
 }
 .bg-blobs::before {
-  background: #ff00c8;
+  --blob: #ff00c8;
   top: -20vmax;
   left: -15vmax;
 }
 .bg-blobs::after {
-  background: #00e5ff;
+  --blob: #00e5ff;
   bottom: -25vmax;
   right: -15vmax;
   animation-delay: -11s;
@@ -86,11 +90,12 @@ body {
   }
 }
 
-/* In the components layer so Tailwind border/bg utilities can override it */
+/* In the components layer so Tailwind border/bg utilities can override it.
+   No backdrop-filter: the backdrop is already soft blobs, and re-blurring it under every panel
+   on every frame of the drift animation was the main idle CPU cost. */
 @layer components {
   .glass {
-    background: rgb(255 255 255 / 0.04);
+    background: rgb(255 255 255 / 0.05);
     border: 1px solid rgb(255 255 255 / 0.1);
-    backdrop-filter: blur(12px);
   }
 }
